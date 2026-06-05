@@ -87,7 +87,7 @@ export async function requireFirebaseAuth(db, request) {
   if (!user) {
     user = {
       id: decoded.uid,
-      name: decoded.name ?? decoded.email?.split('@')[0] ?? 'Usuario',
+      name: decoded.name ?? '',   // preenchido pelo PATCH /me no fluxo de cadastro
       email: decoded.email ?? '',
       role: db.users.length === 0 ? 'admin' : 'player',
       createdAt: new Date().toISOString(),
@@ -95,7 +95,7 @@ export async function requireFirebaseAuth(db, request) {
     db.users.push(user);
     Object.defineProperty(db, '__dirty', { value: true, enumerable: false, configurable: true, writable: true });
   } else if (decoded.name && decoded.name !== user.name) {
-    // Sync displayName from a refreshed Firebase ID token.
+    // Sincroniza displayName de um token Firebase atualizado.
     user.name = decoded.name;
     Object.defineProperty(db, '__dirty', { value: true, enumerable: false, configurable: true, writable: true });
   }
