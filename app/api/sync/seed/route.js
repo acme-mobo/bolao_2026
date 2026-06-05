@@ -1,0 +1,23 @@
+import { config } from '../../../../src/config.js';
+import { seedLocalFixtures } from '../../../../src/wc-sync.js';
+
+export const dynamic = 'force-dynamic';
+
+function authorized(request) {
+  const secret = config.apiFootballSyncSecret;
+  if (!secret) return true;
+  return request.headers.get('authorization') === `Bearer ${secret}`;
+}
+
+// POST /api/sync/seed — popula Firestore com os 72 jogos da fase de grupos
+export async function POST(request) {
+  if (!authorized(request)) {
+    return Response.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+  try {
+    const result = await seedLocalFixtures();
+    return Response.json(result);
+  } catch (err) {
+    return Response.json({ error: err.message }, { status: 500 });
+  }
+}

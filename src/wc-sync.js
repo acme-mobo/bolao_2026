@@ -1,0 +1,400 @@
+/**
+ * wc-sync.js — Orquestrador de sincronização API-Football → Firestore
+ *
+ * Responsabilidades:
+ *  - Controle de uso diário (100 req/dia, 4 modos)
+ *  - Lock distribuído para evitar concorrência
+ *  - Escrita normalizada no Firestore (/worldcup/2026/...)
+ *  - Bridge: atualiza também os matches do bolão para scoring de palpites
+ *  - Decisão inteligente do que sincronizar a cada tick do cron
+ */
+
+import { FieldValue } from 'firebase-admin/firestore';
+import { ApiFootballClient } from './api-football.js';
+import { getAdminFirestore } from './firebase-admin.js';
+import { store } from './store.js';
+import { worldCup2026GroupMatches, worldCup2026Teams } from './world-cup-2026-data.js';
+
+// ─── Constantes ───────────────────────────────────────
+const DAILY_LIMIT   = 100;
+const LOCK_TTL_MS   = 5 * 60 * 1000; // lock expira em 5 min
+
+// Limiares de uso que mudam o modo de operação
+const THRESHOLDS = { economy: 70, critical: 85, cacheOnly: 95 };
+
+// Intervalos de staleness por operação (minutos), por modo
+const INTERVALS = {
+  //              normal  economy  critical
+  allFixtures: [  360,    720,     null  ],  // null = skip
+  standings:   [  240,    480,     null  ],
+  daily:       [   60,    120,      180  ],
+  live:        [   10,     15,       20  ],
+};
+
+// ─── Firestore refs ───────────────────────────────────
+const fs         = () => getAdminFirestore();
+const wcRoot     = () => fs().collection('worldcup').doc('2026');
+const systemCol  = () => fs().collection('system');
+
+// ─── Controle de uso diário ───────────────────────────
+export function getMode(used) {
+  if (used >= THRESHOLDS.cacheOnly) return 'cache-only';
+  if (used >= THRESHOLDS.critical)  return 'critical';
+  if (used >= THRESHOLDS.economy)   return 'economy';
+  return 'normal';
+}
+
+async function getUsage(date) {
+  const ref = systemCol().doc(`usage_${date}`);
+  await ref.set({ date, limit: DAILY_LIMIT }, { merge: true }); // inicializa sem sobrescrever used
+  const snap = await ref.get();
+  const data = snap.data();
+  return { used: 0, ...data };
+}
+
+async function incrementUsage(date, calls) {
+  await systemCol().doc(`usage_${date}`).set(
+    { used: FieldValue.increment(calls), lastCallAt: new Date().toISOString() },
+    { merge: true },
+  );
+}
+
+// ─── Lock distribuído ─────────────────────────────────
+async function acquireLock(name) {
+  const ref = systemCol().doc(`lock_${name}`);
+  return fs().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists) {
+      const age = Date.now() - new Date(snap.data().lockedAt).getTime();
+      if (age < LOCK_TTL_MS) return false; // lock válido, skip
+    }
+    tx.set(ref, { lockedAt: new Date().toISOString() });
+    return true;
+  });
+}
+
+async function releaseLock(name) {
+  await systemCol().doc(`lock_${name}`).delete().catch(() => {});
+}
+
+// ─── Helpers de staleness ─────────────────────────────
+function minutesSince(iso) {
+  if (!iso) return Infinity;
+  return (Date.now() - new Date(iso).getTime()) / 60_000;
+}
+
+function intervalFor(op, mode) {
+  const idx = { normal: 0, economy: 1, critical: 2 }[mode] ?? 0;
+  return INTERVALS[op]?.[idx] ?? null;
+}
+
+// ─── Escritas no Firestore ────────────────────────────
+async function writeFixturesBatch(fixtures) {
+  if (!fixtures.length) return;
+  const root = wcRoot();
+  // Firestore batch suporta até 500 ops; para 48 fixtures é suficiente
+  const batch = fs().batch();
+  for (const f of fixtures) {
+    batch.set(root.collection('fixtures').doc(String(f.fixtureId)), f, { merge: true });
+  }
+  await batch.commit();
+}
+
+async function writeDailyDoc(date, fixtures) {
+  await wcRoot().collection('daily').doc(date).set(
+    { date, fixtures, updatedAt: new Date().toISOString() },
+    { merge: true },
+  );
+}
+
+async function writeLiveDoc(fixtures) {
+  await wcRoot().collection('live').doc('current').set({
+    fixtures,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function writeStandingsDoc(standings) {
+  await wcRoot().collection('standings').doc('current').set({
+    standings,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function writeSyncStatus(patch) {
+  await wcRoot().collection('meta').doc('syncStatus').set(
+    { ...patch, updatedAt: new Date().toISOString() },
+    { merge: true },
+  );
+}
+
+// ─── Bridge para o bolão (scoring de palpites) ────────
+// Atualiza db.matches com placares da API-Football para que o scoring funcione
+async function bridgeToBolaoDB(fixtures) {
+  if (!fixtures.length) return [];
+  const db = await store.load();
+  const teamsById = new Map(db.teams.map((t) => [t.id, t]));
+  const now = new Date().toISOString();
+  const changes = [];
+
+  for (const local of db.matches) {
+    const home = teamsById.get(local.homeTeamId);
+    const away = teamsById.get(local.awayTeamId);
+    if (!home || !away) continue;
+
+    const remote = fixtures.find(
+      (f) => f.homeCode === home.code && f.awayCode === away.code,
+    );
+    if (!remote) continue;
+
+    const before = { status: local.status, homeGoals: local.homeGoals, awayGoals: local.awayGoals };
+
+    local.externalProvider  = 'api-football';
+    local.externalMatchId   = String(remote.fixtureId);
+    local.externalLastUpdated = now;
+    local.status = remote.status;
+
+    if (remote.homeGoals !== null && remote.awayGoals !== null) {
+      local.homeGoals = remote.homeGoals;
+      local.awayGoals = remote.awayGoals;
+    }
+
+    const changed =
+      before.status    !== local.status    ||
+      before.homeGoals !== local.homeGoals ||
+      before.awayGoals !== local.awayGoals;
+
+    if (changed) {
+      changes.push({
+        matchId: local.id,
+        before,
+        after: { status: local.status, homeGoals: local.homeGoals, awayGoals: local.awayGoals },
+      });
+    }
+  }
+
+  if (changes.length > 0) await store.save();
+  return changes;
+}
+
+// ─── Operações de sync individuais ────────────────────
+async function runWithLock(lockName, fn) {
+  const locked = await acquireLock(lockName);
+  if (!locked) return { skipped: true, reason: 'lock ativo' };
+  try {
+    return await fn();
+  } finally {
+    await releaseLock(lockName);
+  }
+}
+
+async function doSyncAllFixtures(client) {
+  return runWithLock('allFixtures', async () => {
+    const fixtures = await client.fetchAllFixtures();
+    await writeFixturesBatch(fixtures);
+    await bridgeToBolaoDB(fixtures);
+    await writeSyncStatus({ lastAllFixtures: new Date().toISOString() });
+    return { ok: true, count: fixtures.length };
+  });
+}
+
+async function doSyncDaily(client, date) {
+  return runWithLock('daily', async () => {
+    const fixtures = await client.fetchDailyFixtures(date);
+    await writeDailyDoc(date, fixtures);
+    await writeFixturesBatch(fixtures);
+    await bridgeToBolaoDB(fixtures);
+    await writeSyncStatus({ lastDailyFixtures: new Date().toISOString() });
+    return { ok: true, count: fixtures.length };
+  });
+}
+
+async function doSyncLive(client) {
+  return runWithLock('live', async () => {
+    const fixtures = await client.fetchLiveFixtures();
+    await writeLiveDoc(fixtures);
+    await writeFixturesBatch(fixtures);
+    const changes = await bridgeToBolaoDB(fixtures);
+    await writeSyncStatus({ lastLive: new Date().toISOString(), liveCount: fixtures.length });
+    return { ok: true, count: fixtures.length, changes: changes.length };
+  });
+}
+
+async function doSyncStandings(client) {
+  return runWithLock('standings', async () => {
+    const standings = await client.fetchStandings();
+    await writeStandingsDoc(standings);
+    await writeSyncStatus({ lastStandings: new Date().toISOString() });
+    return { ok: true, count: standings.length };
+  });
+}
+
+// ─── Orquestrador principal ───────────────────────────
+export async function orchestrate() {
+  const client = new ApiFootballClient();
+  if (!client.configured) {
+    return { skipped: true, reason: 'API_FOOTBALL_KEY não configurado' };
+  }
+
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const usage    = await getUsage(todayUtc);
+  const mode     = getMode(usage.used);
+
+  if (mode === 'cache-only') {
+    await writeSyncStatus({ mode, message: 'Cache-only: limite diário atingido' });
+    return { mode, skipped: true, reason: 'cache-only', used: usage.used };
+  }
+
+  // Lê status atual de sincronização
+  const statusSnap = await wcRoot().collection('meta').doc('syncStatus').get();
+  const status     = statusSnap.exists ? statusSnap.data() : {};
+
+  // Verifica se há jogos ativos ou iminentes (para decidir sobre live)
+  const liveSnap  = await wcRoot().collection('live').doc('current').get();
+  const liveData  = liveSnap.exists ? liveSnap.data() : { fixtures: [] };
+  const hasLiveNow = (liveData.fixtures ?? []).some((f) => f.status === 'live');
+
+  const dailySnap  = await wcRoot().collection('daily').doc(todayUtc).get();
+  const dailyData  = dailySnap.exists ? dailySnap.data() : { fixtures: [] };
+  const nowMs = Date.now();
+  const hasTodayMatches = (dailyData.fixtures ?? []).some((f) => {
+    const startMs = new Date(f.date).getTime();
+    return startMs > nowMs - 3 * 3600_000 && startMs < nowMs + 3 * 3600_000;
+  });
+
+  // ── Decide o que sincronizar ───────────────────────
+  const pending = [];
+
+  const allInterval = intervalFor('allFixtures', mode);
+  if (allInterval !== null && minutesSince(status.lastAllFixtures) > allInterval) {
+    pending.push({ name: 'allFixtures', fn: () => doSyncAllFixtures(client) });
+  }
+
+  const standingsInterval = intervalFor('standings', mode);
+  if (standingsInterval !== null && minutesSince(status.lastStandings) > standingsInterval) {
+    pending.push({ name: 'standings', fn: () => doSyncStandings(client) });
+  }
+
+  const dailyInterval = intervalFor('daily', mode);
+  if (dailyInterval !== null && minutesSince(status.lastDailyFixtures) > dailyInterval) {
+    pending.push({ name: 'daily', fn: () => doSyncDaily(client, todayUtc) });
+  }
+
+  const liveInterval = intervalFor('live', mode);
+  const shouldSyncLive = liveInterval !== null
+    && minutesSince(status.lastLive) > liveInterval
+    && (hasLiveNow || hasTodayMatches);
+  if (shouldSyncLive) {
+    pending.push({ name: 'live', fn: () => doSyncLive(client) });
+  }
+
+  if (!pending.length) {
+    return { mode, skipped: true, reason: 'nada a sincronizar', used: usage.used };
+  }
+
+  // ── Executa operações e rastreia uso ───────────────
+  const results = [];
+  let apiCallsMade = 0;
+
+  for (const { name, fn } of pending) {
+    try {
+      const result = await fn();
+      if (!result.skipped) apiCallsMade++;
+      results.push({ op: name, ...result });
+    } catch (err) {
+      results.push({ op: name, error: err.message });
+      apiCallsMade++; // API-Football conta mesmo requests com erro
+    }
+  }
+
+  if (apiCallsMade > 0) await incrementUsage(todayUtc, apiCallsMade);
+
+  const updatedUsed = usage.used + apiCallsMade;
+  const updatedMode = getMode(updatedUsed);
+  const hhmm = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+
+  await writeSyncStatus({
+    mode:       updatedMode,
+    usedToday:  updatedUsed,
+    dailyLimit: DAILY_LIMIT,
+    message:    `Atualizado às ${hhmm}`,
+  });
+
+  return { mode: updatedMode, ops: results, apiCallsMade, used: updatedUsed };
+}
+
+// ─── Seed local (dados de world-cup-2026-data.js) ────
+export async function seedLocalFixtures() {
+  const teamNames = Object.fromEntries(worldCup2026Teams.map(([name, code]) => [code, name]));
+  const now = new Date().toISOString();
+
+  const fixtures = worldCup2026GroupMatches.map(([num, group, homeCode, awayCode, date, venue, city]) => ({
+    fixtureId:     num,
+    date,
+    statusShort:   'NS',
+    statusElapsed: null,
+    status:        'scheduled',
+    round:         'Group Stage',
+    group,
+    venue,
+    city,
+    homeCode,
+    awayCode,
+    homeName:      teamNames[homeCode] ?? homeCode,
+    awayName:      teamNames[awayCode] ?? awayCode,
+    homeLogo:      null,
+    awayLogo:      null,
+    homeGoals:     null,
+    awayGoals:     null,
+    updatedAt:     now,
+    source:        'local',
+  }));
+
+  // Agrupa por data UTC para popular os docs de daily
+  const byDate = {};
+  for (const f of fixtures) {
+    const dateKey = f.date.slice(0, 10);
+    (byDate[dateKey] ??= []).push(f);
+  }
+
+  // Escreve fixtures individuais em batch
+  await writeFixturesBatch(fixtures);
+
+  // Escreve um doc por data
+  const root = wcRoot();
+  const fsBatch = fs().batch();
+  for (const [date, dayFixtures] of Object.entries(byDate)) {
+    fsBatch.set(
+      root.collection('daily').doc(date),
+      { date, fixtures: dayFixtures, updatedAt: now },
+    );
+  }
+  await fsBatch.commit();
+
+  // Marca allFixtures como recém-sincronizado para o cron não tentar re-buscar
+  await writeSyncStatus({
+    lastAllFixtures:   now,
+    lastDailyFixtures: now,
+    source:            'local-seed',
+    message:           `Seed local: ${fixtures.length} jogos escritos em ${Object.keys(byDate).length} datas`,
+  });
+
+  return { seeded: fixtures.length, dates: Object.keys(byDate).length };
+}
+
+// ─── Leitura de status (para o frontend/admin) ────────
+export async function getSyncStatus() {
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const [statusSnap, usage] = await Promise.all([
+    wcRoot().collection('meta').doc('syncStatus').get(),
+    getUsage(todayUtc),
+  ]);
+
+  const status = statusSnap.exists ? statusSnap.data() : {};
+  return {
+    ...status,
+    usedToday:  usage.used,
+    dailyLimit: DAILY_LIMIT,
+    mode:       getMode(usage.used),
+  };
+}
