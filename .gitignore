@@ -8,3 +8,4 @@ coverage/
 firebase-service-account*.json
 service-account*.json
 .DS_Store
+.vercel
