@@ -5,48 +5,59 @@ export function matchOutcome(homeGoals, awayGoals) {
 }
 
 export function scorePrediction(match, prediction) {
-  if (!Number.isInteger(match.homeGoals) || !Number.isInteger(match.awayGoals)) {
-    return 0;
-  }
+  if (!Number.isInteger(match.homeGoals) || !Number.isInteger(match.awayGoals)) return 0;
 
-  const exact =
-    prediction.homeGoals === match.homeGoals && prediction.awayGoals === match.awayGoals;
-  if (exact) return 25;
+  const mH = match.homeGoals, mA = match.awayGoals;
+  const pH = prediction.homeGoals, pA = prediction.awayGoals;
 
-  const points = [];
-  const predictedOutcome = matchOutcome(prediction.homeGoals, prediction.awayGoals);
-  const actualOutcome = matchOutcome(match.homeGoals, match.awayGoals);
-  if (predictedOutcome === actualOutcome) points.push(10);
+  // 25 pts — placar exato (vitória ou empate)
+  if (pH === mH && pA === mA) return 25;
 
-  const predictedDiff = prediction.homeGoals - prediction.awayGoals;
-  const actualDiff = match.homeGoals - match.awayGoals;
-  if (predictedDiff === actualDiff) points.push(5);
+  const outcome     = matchOutcome(mH, mA);
+  const predOutcome = matchOutcome(pH, pA);
+  if (predOutcome !== outcome) return 0;
 
-  if (prediction.homeGoals === match.homeGoals) points.push(2);
-  if (prediction.awayGoals === match.awayGoals) points.push(2);
+  // Empate acertado mas placar errado → 10 pts
+  if (outcome === 'draw') return 10;
 
-  return points.reduce((total, point) => total + point, 0);
+  // Vitória: avalia saldo e gols individuais
+  if ((pH - pA) === (mH - mA)) return 18; // vencedor + saldo de gols
+  if (pH === mH || pA === mA)  return 15; // vencedor + gols de um time
+  return 10;                               // só o vencedor
 }
 
 export function buildLeaderboard(db, poolId) {
-  const members = db.memberships.filter((membership) => membership.poolId === poolId);
+  const members = db.memberships.filter((m) => m.poolId === poolId);
   return members
     .map((membership) => {
-      const user = db.users.find((candidate) => candidate.id === membership.userId);
+      const user = db.users.find((u) => u.id === membership.userId);
       const predictions = db.predictions.filter(
-        (prediction) => prediction.poolId === poolId && prediction.userId === membership.userId,
+        (p) => p.poolId === poolId && p.userId === membership.userId,
       );
-      const points = predictions.reduce((total, prediction) => {
-        const match = db.matches.find((candidate) => candidate.id === prediction.matchId);
-        return total + (match ? scorePrediction(match, prediction) : 0);
-      }, 0);
+
+      let points = 0, exactCount = 0, correctOutcomeCount = 0;
+      for (const p of predictions) {
+        const match = db.matches.find((m) => m.id === p.matchId);
+        if (!match || !Number.isInteger(match.homeGoals)) continue;
+        const pts = scorePrediction(match, p);
+        points += pts;
+        if (pts === 25) exactCount++;
+        if (pts > 0)   correctOutcomeCount++;
+      }
 
       return {
         userId: membership.userId,
         name: user?.name ?? 'Usuario removido',
         predictions: predictions.length,
         points,
+        exactCount,
+        correctOutcomeCount,
       };
     })
-    .sort((a, b) => b.points - a.points || b.predictions - a.predictions || a.name.localeCompare(b.name));
+    .sort((a, b) =>
+      b.points               - a.points               ||
+      b.exactCount           - a.exactCount           ||
+      b.correctOutcomeCount  - a.correctOutcomeCount  ||
+      a.name.localeCompare(b.name),
+    );
 }

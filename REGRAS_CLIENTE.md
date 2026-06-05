@@ -200,29 +200,42 @@ Regras:
 
 ## Pontuacao
 
-A pontuacao e calculada somente quando o jogo possui resultado inteiro em `homeGoals` e `awayGoals`.
+A pontuacao e calculada somente quando o jogo possui resultado inteiro em `homeGoals` e `awayGoals`. O palpite deve ser registrado antes do inicio da partida; apos o inicio, os palpites para aquela partida sao encerrados.
 
-Regras:
+Regras (em ordem de prioridade):
 
-- 25 pontos: placar exato.
-- 10 pontos: acerto do vencedor ou empate.
-- 5 pontos: acerto da diferenca de gols sem placar exato.
-- 2 pontos: acerto dos gols do mandante.
-- 2 pontos: acerto dos gols do visitante.
+| Pontos | Condicao |
+| ---: | --- |
+| 25 | Placar exato — acertou os dois placares (vale para vitorias e empates) |
+| 18 | Vencedor correto + saldo de gols correto (diferenca igual, sem acertar o placar exato) |
+| 15 | Vencedor correto + gols exatos de uma das equipes |
+| 10 | Vencedor correto apenas — ou empate acertado com placar errado |
+| 0 | Resultado incorreto, ou jogo ainda sem placar oficial |
 
 Exemplos considerando resultado real `Brasil 2 x 1 Marrocos`:
 
 | Palpite | Pontos | Motivo |
 | --- | ---: | --- |
 | 2 x 1 | 25 | Placar exato |
-| 2 x 0 | 12 | Vencedor + gols do mandante |
-| 3 x 2 | 15 | Vencedor + diferenca de gols |
-| 1 x 0 | 10 | Vencedor |
-| 0 x 0 | 0 | Resultado incorreto |
+| 3 x 2 | 18 | Vencedor + saldo (+1 = +1) |
+| 1 x 0 | 18 | Vencedor + saldo (+1 = +1) |
+| 2 x 0 | 15 | Vencedor + gols do mandante (2 = 2) |
+| 3 x 1 | 15 | Vencedor + gols do visitante (1 = 1) |
+| 3 x 0 | 10 | So o vencedor |
+| 0 x 1 | 0 | Resultado incorreto |
 
-Observacao:
+Exemplo de empate — resultado real `Argentina 1 x 1 Austria`:
 
-- Placar exato substitui as outras regras e retorna 25 pontos.
+| Palpite | Pontos | Motivo |
+| --- | ---: | --- |
+| 1 x 1 | 25 | Placar exato |
+| 0 x 0 | 10 | Empate acertado, placar diferente |
+| 2 x 2 | 10 | Empate acertado, placar diferente |
+| 2 x 1 | 0 | Resultado incorreto |
+
+Observacoes:
+
+- Para empates, os criterios de 18 e 15 pontos nao se aplicam; o maximo sem placar exato e 10 pontos.
 - Sem resultado oficial, o palpite vale 0 temporariamente.
 
 ## Ranking
@@ -236,17 +249,20 @@ Observacao:
       "userId": "usr_...",
       "name": "Vagner",
       "predictions": 10,
-      "points": 82
+      "points": 82,
+      "exactCount": 3,
+      "correctOutcomeCount": 7
     }
   ]
 }
 ```
 
-Ordenacao:
+Ordenacao e criterios de desempate:
 
-1. Maior pontuacao.
-2. Maior quantidade de palpites.
-3. Nome em ordem alfabetica.
+1. Maior pontuacao total.
+2. Maior numero de placares exatos (`exactCount`).
+3. Maior numero de vencedores/empates acertados (`correctOutcomeCount`).
+4. Nome em ordem alfabetica.
 
 Regras de UX:
 
