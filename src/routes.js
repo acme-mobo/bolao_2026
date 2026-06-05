@@ -398,6 +398,33 @@ export function createRouter(store, options = {}) {
       send(response, 200, { predictions });
     }),
 
+    route('GET', /^\/pools\/([^/]+)\/matches\/([^/]+)\/predictions$/, async (request, response, db, [, poolId, matchId]) => {
+      const user = await requireFirebaseAuth(db, request);
+      assert(
+        db.memberships.some((m) => m.poolId === poolId && m.userId === user.id),
+        403, 'Voce nao participa deste bolao',
+      );
+      const match = db.matches.find((m) => m.id === matchId);
+      assert(match, 404, 'Jogo nao encontrado');
+      assert(match.status === 'finished', 403, 'Palpites visiveis somente apos encerramento do jogo');
+
+      const predictions = db.predictions
+        .filter((p) => p.poolId === poolId && p.matchId === matchId)
+        .map((p) => {
+          const predUser = db.users.find((u) => u.id === p.userId);
+          return {
+            userId:    p.userId,
+            userName:  predUser?.name ?? 'Usuário',
+            homeGoals: p.homeGoals,
+            awayGoals: p.awayGoals,
+            points:    scorePrediction(match, p),
+          };
+        })
+        .sort((a, b) => b.points - a.points || a.userName.localeCompare(b.userName));
+
+      send(response, 200, { predictions });
+    }),
+
     route('GET', /^\/pools\/([^/]+)\/leaderboard$/, async (request, response, db, [, poolId]) => {
       const user = await requireFirebaseAuth(db, request);
       assert(
