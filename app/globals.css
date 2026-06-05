@@ -220,8 +220,18 @@ button { cursor: pointer; border: 0; }
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 48px;
   min-height: 78vh;
-  padding: 20px 0;
+  padding: 20px;
+}
+
+.authBanner {
+  width: 380px;
+  max-width: 42%;
+  object-fit: contain;
+  opacity: 0.92;
+  filter: drop-shadow(0 8px 36px rgba(0,0,0,0.45));
+  flex-shrink: 0;
 }
 
 .authCard {
@@ -379,17 +389,16 @@ button { cursor: pointer; border: 0; }
   overflow: hidden;
 }
 
-.heroPanel::after {
-  content: '2026';
+.heroBanner {
   position: absolute;
-  right: -8px;
-  bottom: -18px;
-  font-size: 110px;
-  font-weight: 900;
-  color: var(--watermark);
-  line-height: 1;
+  right: 52px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 148px;
+  opacity: 0.88;
   pointer-events: none;
   user-select: none;
+  filter: drop-shadow(0 4px 18px rgba(0,0,0,0.35));
 }
 
 .heroMeta {
@@ -1073,16 +1082,47 @@ button { cursor: pointer; border: 0; }
 /* ═══════════════════════════════════════════════════
    Leaderboard
 ═══════════════════════════════════════════════════ */
+/* cabeçalho + linhas compartilham o mesmo grid de colunas */
+.rankHeader,
+.leaderboard li {
+  display: grid;
+  grid-template-columns: 22px 1fr 34px 34px 34px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 13px 0 9px;
+}
+
+.rankHeader {
+  margin-bottom: 4px;
+  padding-bottom: 6px;
+  border: 1px solid transparent;          /* iguala box model dos li (border: 1px) */
+  border-bottom-color: var(--line-strong);
+}
+
+.rankHeaderPts {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--brand);
+  text-align: center;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.rankHeaderStat {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 .leaderboard { display: grid; gap: 7px; list-style: none; }
 
 .leaderboard li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
   min-height: 44px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 0 13px 0 9px;
   background: var(--bg2);
   transition: border-color 0.15s, background 0.15s;
 }
@@ -1121,9 +1161,26 @@ button { cursor: pointer; border: 0; }
   white-space: nowrap;
 }
 
+.rankStat {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+}
+
 .rankPoints {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
+  text-align: center;
+  color: var(--brand);
+}
+
+.rankLegend {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--muted-dim);
+  text-align: center;
+  letter-spacing: 0.3px;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1177,6 +1234,134 @@ button { cursor: pointer; border: 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ═══════════════════════════════════════════════════
+   Botão de regras no panel title
+═══════════════════════════════════════════════════ */
+.btnRules {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--glass-bg);
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.btnRules:hover { background: var(--surface-hover); color: var(--brand); border-color: var(--brand); }
+
+/* ═══════════════════════════════════════════════════
+   Regras de pontuação (dentro do modal existente)
+═══════════════════════════════════════════════════ */
+.rulesTable { display: grid; gap: 8px; }
+
+.ruleRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 13px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+}
+.ruleRow.highlight {
+  background: var(--brand-dim);
+  border-color: rgba(0,229,153,0.2);
+}
+
+.rulePts {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--brand);
+  min-width: 38px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ruleRow.highlight .rulePts { color: var(--brand-light); }
+
+.ruleLabel { font-size: 13px; font-weight: 700; }
+.ruleDesc  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.rulesNote { margin-top: 14px; font-size: 12px; color: var(--muted); text-align: center; }
+
+/* ═══════════════════════════════════════════════════
+   Painel de palpites nos cards de resultado
+═══════════════════════════════════════════════════ */
+.matchPredictionsWrap {
+  border-top: 1px solid var(--line);
+  padding: 8px 13px 10px;
+}
+
+.btnViewPreds {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: color 0.15s;
+}
+.btnViewPreds:hover { color: var(--brand); }
+.btnViewPreds svg { transition: transform 0.2s; }
+.btnViewPreds.open svg { transform: rotate(180deg); }
+
+.predsList {
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  animation: slideDown 0.18s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.predRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 9px;
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  border: 1px solid transparent;
+}
+.predRow.me {
+  background: var(--brand-dim);
+  border-color: rgba(0,229,153,0.15);
+}
+
+.predAvatar {
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.predName  { flex: 1; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.predScore { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.predPts   { font-size: 11px; font-weight: 800; white-space: nowrap; min-width: 44px; text-align: right; }
+.predPts.exact   { color: var(--gold); }
+.predPts.partial { color: var(--brand); }
+.predPts.zero    { color: var(--muted-dim); }
+
+.predsLoading { padding: 10px 0 2px; font-size: 11px; color: var(--muted); }
+.predsEmpty   { padding: 10px 0 2px; font-size: 11px; color: var(--muted-dim); }
 
 /* ═══════════════════════════════════════════════════
    Icon buttons
@@ -1495,7 +1680,8 @@ button { cursor: pointer; border: 0; }
   .shell { width: calc(100% - 20px); padding-top: 14px; }
   .mainPanel, .sidePanel, .metricPanel { grid-column: span 12; }
   .heroPanel { flex-direction: column; align-items: flex-start; }
-  .heroPanel::after { display: none; }
+  .heroBanner { display: none; }
+  .authBanner { display: none; }
   .toastWrap { right: 10px; left: 10px; top: 10px; }
   .toast { max-width: 100%; }
   .navTabs button { font-size: 11px; padding: 0 6px; }

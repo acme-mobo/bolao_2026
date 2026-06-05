@@ -1,8 +1,9 @@
 'use client';
 
 import {
-  AlertTriangle, CalendarDays, Check, CheckCircle, Clock,
-  LogOut, Moon, Pencil, Save, Shield, Sun, Trash2, Trophy, Users, X,
+  AlertTriangle, CalendarDays, Check, CheckCircle, ChevronDown,
+  Clock, HelpCircle, LogOut, Moon, Pencil, Save, Shield, Sun,
+  Trash2, Trophy, Users, X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -89,6 +90,87 @@ function formatDayLabel(value) {
 }
 
 // ─── Sub-components ───────────────────────────────────
+const AVATAR_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f59e0b','#10b981','#06b6d4','#3b82f6'];
+function avatarColor(id = '') {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+
+function ScoringRulesModal({ onClose }) {
+  const rules = [
+    { pts: 25, label: 'Placar exato',              desc: 'Acertou os dois placares — vale para vitórias e empates', highlight: true },
+    { pts: 18, label: 'Vencedor + saldo de gols',  desc: 'Acertou o vencedor e a diferença de gols (ex: apostou 3×1, saiu 2×0)' },
+    { pts: 15, label: 'Vencedor + gols de um time', desc: 'Acertou o vencedor e os gols de uma das equipes (ex: apostou 2×0, saiu 2×1)' },
+    { pts: 10, label: 'Só o vencedor / empate',    desc: 'Acertou apenas o resultado — quem vence ou que termina empatado' },
+  ];
+  return (
+    <div className="modalOverlay" role="dialog" aria-modal="true"
+      onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modalHead">
+          <div className="modalHeadIcon"><Trophy size={20} /></div>
+          <h3>Regras de Pontuação</h3>
+          <p>Cada jogo vale no máximo 25 pts. Palpites fecham no início da partida.</p>
+        </div>
+        <div className="modalBody">
+          <div className="rulesTable">
+            {rules.map((r) => (
+              <div key={r.label} className={`ruleRow${r.highlight ? ' highlight' : ''}`}>
+                <div className="rulePts">{r.pts}</div>
+                <div>
+                  <div className="ruleLabel">{r.label}</div>
+                  <div className="ruleDesc">{r.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="rulesNote">
+            Desempate: mais placares exatos → mais vencedores acertados.
+          </p>
+        </div>
+        <div className="modalFoot">
+          <button className="btnPrimary" onClick={onClose}>Entendido</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MatchPredictionsPanel({ matchId, poolId, token, myUserId }) {
+  const [state, setState] = useState({ data: null, loading: true, error: null });
+
+  useEffect(() => {
+    api(`/pools/${poolId}/matches/${matchId}/predictions`, token)
+      .then(({ predictions }) => setState({ data: predictions, loading: false, error: null }))
+      .catch((e) => setState({ data: null, loading: false, error: e.message }));
+  }, [matchId, poolId, token]);
+
+  if (state.loading) return <div className="predsLoading">Carregando palpites…</div>;
+  if (state.error)   return <div className="predsEmpty">Erro ao carregar.</div>;
+  if (!state.data?.length) return <div className="predsEmpty">Nenhum palpite registrado.</div>;
+
+  return (
+    <ul className="predsList">
+      {state.data.map((p) => {
+        const cls = p.points === 25 ? 'exact' : p.points > 0 ? 'partial' : 'zero';
+        return (
+          <li key={p.userId} className={`predRow${p.userId === myUserId ? ' me' : ''}`}>
+            <div className="predAvatar" style={{ background: avatarColor(p.userId) }}>
+              {p.userName[0].toUpperCase()}
+            </div>
+            <span className="predName">{p.userId === myUserId ? `${p.userName} (você)` : p.userName}</span>
+            <span className="predScore">{p.homeGoals} × {p.awayGoals}</span>
+            <span className={`predPts ${cls}`}>
+              {p.points === 25 ? '⭐ ' : ''}{p.points} pts
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function MatchStatusBadge({ match }) {
   if (match.status === 'live')      return <span className="statusBadge live">● Ao vivo</span>;
   if (match.status === 'finished')  return <span className="statusBadge finished">Encerrado</span>;
@@ -117,8 +199,9 @@ function RankPosition({ index }) {
 }
 
 function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
-  selectedPoolId, showGroup, urgency, now, onUpdateDraft, onSave, onDeletePrediction }) {
+  selectedPoolId, token, myUserId, showGroup, urgency, now, onUpdateDraft, onSave, onDeletePrediction }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showPreds, setShowPreds] = useState(false);
 
   const home = teamById(teams, match.homeTeamId);
   const away = teamById(teams, match.awayTeamId);
@@ -233,6 +316,26 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
           )}
         </div>
       </div>
+
+      {isFinished && (
+        <div className="matchPredictionsWrap">
+          <button
+            className={`btnViewPreds${showPreds ? ' open' : ''}`}
+            onClick={() => setShowPreds((v) => !v)}
+          >
+            <ChevronDown size={13} />
+            {showPreds ? 'Ocultar palpites' : 'Ver palpites dos jogadores'}
+          </button>
+          {showPreds && (
+            <MatchPredictionsPanel
+              matchId={match.id}
+              poolId={selectedPoolId}
+              token={token}
+              myUserId={myUserId}
+            />
+          )}
+        </div>
+      )}
     </article>
   );
 }
@@ -267,6 +370,7 @@ export default function HomePage() {
   const [now, setNow]                   = useState(() => Date.now());
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [scoringModal, setScoringModal] = useState(false);
   const toastIdRef = useRef(0);
 
   // ─── Theme persistence ──────────────────────────────
@@ -320,7 +424,9 @@ export default function HomePage() {
       setUser(nextUser);
       if (!nextUser) {
         setToken(''); setProfile(null); setActivePool(null);
+        setSelectedPoolId('');
         setLeaderboard([]); setPredictions([]);
+        setPredictionDrafts({});
         return;
       }
       const nextToken = await nextUser.getIdToken();
@@ -339,12 +445,12 @@ export default function HomePage() {
       .then(([rankData, predData]) => {
         setLeaderboard(rankData.leaderboard);
         setPredictions(predData.predictions);
-        setPredictionDrafts((cur) => {
-          const next = { ...cur };
+        setPredictionDrafts(() => {
+          const drafts = {};
           for (const p of predData.predictions) {
-            next[p.matchId] = { homeGoals: p.homeGoals, awayGoals: p.awayGoals };
+            drafts[p.matchId] = { homeGoals: p.homeGoals, awayGoals: p.awayGoals };
           }
-          return next;
+          return drafts;
         });
       })
       .catch((err) => addToast(err.message, 'error'));
@@ -357,19 +463,19 @@ export default function HomePage() {
     try {
       if (authMode === 'signup') {
         const cred = await createUserWithEmailAndPassword(auth, authForm.email, authForm.password);
-        // Grab token before onAuthStateChanged has a chance to run loadProtected
-        // with a token that doesn't yet carry the displayName claim.
-        const signupToken = await cred.user.getIdToken();
         if (authForm.name) {
           await updateProfile(cred.user, { displayName: authForm.name });
-          // Write the name to our DB via PATCH /me (decoded.name in the token
-          // is still empty at this point, so we pass the name explicitly).
+        }
+        // Força refresh do token para incluir o displayName recém-definido.
+        // Isso garante que requireFirebaseAuth crie o usuário no DB com o nome
+        // correto, e que setToken receba um valor diferente → leaderboard recarrega.
+        const signupToken = await cred.user.getIdToken(true);
+        if (authForm.name) {
           await api('/me', signupToken, {
             method: 'PATCH',
             body: JSON.stringify({ name: authForm.name }),
           });
         }
-        // Reload profile so the UI shows the correct name immediately.
         setToken(signupToken);
         await loadProtected(signupToken);
         addToast('Bem-vindo!', 'success');
@@ -391,13 +497,15 @@ export default function HomePage() {
     const name = nameInput.trim();
     if (name.length < 2) { addToast('Nome precisa ter pelo menos 2 caracteres', 'error'); return; }
     try {
-      // Update Firebase Auth displayName and our DB atomically.
       await updateProfile(getFirebaseAuth().currentUser, { displayName: name });
       const { user: updated } = await api('/me', token, {
         method: 'PATCH',
         body: JSON.stringify({ name }),
       });
       setProfile(updated);
+      setLeaderboard((prev) => prev.map((row) =>
+        row.userId === updated.id ? { ...row, name } : row,
+      ));
       setEditingName(false);
       addToast('Nome atualizado!', 'success');
     } catch (err) {
@@ -505,7 +613,8 @@ export default function HomePage() {
   // Shared match card props
   const matchCardShared = {
     teams, predictions, predictionDrafts, savedMatches,
-    selectedPoolId, now,
+    selectedPoolId, token, myUserId: profile?.id,
+    now,
     onUpdateDraft: updateDraft,
     onSave: savePrediction,
     onDeletePrediction: deletePrediction,
@@ -542,6 +651,7 @@ export default function HomePage() {
       {/* Auth */}
       {!user ? (
         <div className="authWrap">
+          <img src="/hero-banner.png" className="authBanner" alt="" aria-hidden="true" />
           <div className="authCard">
             <div className="authHeader">
               <div className="authLogo">B</div>
@@ -600,6 +710,7 @@ export default function HomePage() {
               <h2>{activePool?.name ?? 'Carregando…'}</h2>
               <p className="heroSub">Copa do Mundo FIFA 2026 · fase de grupos</p>
             </div>
+            <img src="/hero-banner.png" className="heroBanner" alt="" aria-hidden="true" />
             <div className="heroActions">
               <button className="btnIcon danger" title="Sair"
                 aria-label="Sair" onClick={() => signOut(getFirebaseAuth())}>
@@ -835,20 +946,36 @@ export default function HomePage() {
             <div className="panelTitle">
               <div className="titleIcon"><Trophy size={13} /></div>
               <h2>Ranking</h2>
+              <button className="btnRules" onClick={() => setScoringModal(true)}
+                title="Regras de pontuação" aria-label="Regras de pontuação">
+                <HelpCircle size={14} />
+              </button>
             </div>
-            <ol className="leaderboard">
-              {leaderboard.length ? (
-                leaderboard.map((row, i) => (
-                  <li key={row.userId} className={row.userId === profile?.id ? 'me' : ''}>
-                    <RankPosition index={i} />
-                    <span className="rankName">{row.name}</span>
-                    <span className="rankPoints">{row.points}</span>
-                  </li>
-                ))
-              ) : (
-                <div className="emptyState">Nenhum palpite ainda.</div>
-              )}
-            </ol>
+            {leaderboard.length ? (
+              <>
+                <div className="rankHeader">
+                  <span />{/* posição */}
+                  <span />{/* nome */}
+                  <span className="rankHeaderPts" title="Pontuação total">Pts</span>
+                  <span className="rankHeaderStat" title="Placares exatos">E</span>
+                  <span className="rankHeaderStat" title="Vencedores acertados">V</span>
+                </div>
+                <ol className="leaderboard">
+                  {leaderboard.map((row, i) => (
+                    <li key={row.userId} className={row.userId === profile?.id ? 'me' : ''}>
+                      <RankPosition index={i} />
+                      <span className="rankName">{row.name}</span>
+                      <span className="rankPoints">{row.points}</span>
+                      <span className="rankStat">{row.exactCount ?? 0}</span>
+                      <span className="rankStat">{row.correctOutcomeCount ?? 0}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="rankLegend">E: placares exatos · V: vencedores acertados</p>
+              </>
+            ) : (
+              <div className="emptyState">Nenhum palpite ainda.</div>
+            )}
           </section>
 
           {/* ── Full-width: Grupos ───────────────────── */}
@@ -877,6 +1004,9 @@ export default function HomePage() {
 
         </div>
       )}
+      {/* ── Scoring rules modal ──────────────────── */}
+      {scoringModal && <ScoringRulesModal onClose={() => setScoringModal(false)} />}
+
       {/* ── Delete account modal ─────────────────── */}
       {deleteAccountModal && (
         <div
