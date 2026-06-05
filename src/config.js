@@ -24,4 +24,9 @@ export const config = {
   footballDataBaseUrl: process.env.FOOTBALL_DATA_BASE_URL ?? 'https://api.football-data.org/v4',
   liveScoreCompetitionCode: process.env.LIVE_SCORE_COMPETITION_CODE ?? 'WC',
   liveScoreSeason: Number(process.env.LIVE_SCORE_SEASON ?? 2026),
+  // API-Football (api-sports.io)
+  apiFootballKey: process.env.API_FOOTBALL_KEY ?? '',
+  apiFootballLeagueId: Number(process.env.API_FOOTBALL_LEAGUE_ID ?? 1),
+  apiFootballSeason: Number(process.env.API_FOOTBALL_SEASON ?? 2026),
+  apiFootballSyncSecret: process.env.API_FOOTBALL_SYNC_SECRET ?? '',
 };
