@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+data/*.json
+coverage/
+.env
+.env.local
+firebase-service-account*.json
+service-account*.json
+.DS_Store
