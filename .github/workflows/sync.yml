@@ -1,0 +1,23 @@
+name: Sync placares
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-placares
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar sync
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          SYNC_SECRET: ${{ secrets.API_FOOTBALL_SYNC_SECRET }}
+        run: |
+          curl --fail --silent --show-error \
+            -X POST "$SYNC_URL/api/sync" \
+            -H "Authorization: Bearer $SYNC_SECRET"

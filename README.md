@@ -74,6 +74,17 @@ Para desenvolvimento local, `GOOGLE_APPLICATION_CREDENTIALS=/caminho/service-acc
 - `LIVE_SCORE_COMPETITION_CODE=WC`
 - `LIVE_SCORE_SEASON=2026`
 
+### Sincronizacao automatica
+
+O projeto usa GitHub Actions para chamar `POST /api/sync` a cada 10 minutos no repositório público.
+
+Secrets necessários no repositório GitHub:
+
+- `SYNC_URL`: URL pública do deploy, por exemplo `https://bolao-2026.vercel.app`
+- `API_FOOTBALL_SYNC_SECRET`: mesmo valor usado no backend para autorizar o sync
+
+O workflow também pode ser disparado manualmente com `workflow_dispatch`.
+
 ### Outros
 
 - `DATA_STORE=json|firestore`
@@ -153,6 +164,7 @@ Palpites fecham em `lockAt`, normalmente igual a `startsAt`.
 4. Configurar credenciais Admin do Firebase.
 5. Rodar `npm run seed` uma vez com as mesmas variaveis, localmente ou em ambiente seguro.
 6. Deploy com build command `npm run build`.
+7. Configurar os secrets `SYNC_URL` e `API_FOOTBALL_SYNC_SECRET` no GitHub para habilitar o sync automatico.
 
 ## Dados Oficiais
 
