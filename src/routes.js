@@ -173,6 +173,30 @@ export function createRouter(store, options = {}) {
       send(response, 200, { matches });
     }),
 
+    route('GET', /^\/matches\/summary$/, (request, response, db) => {
+      const dateParam = parseUrl(request).searchParams.get('date');
+      let matches = db.matches;
+      if (dateParam) {
+        const day = dateParam.slice(0, 10);
+        matches = matches.filter((m) => m.startsAt && m.startsAt.slice(0, 10) === day);
+      }
+      const summary = matches
+        .sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0))
+        .map((m) => {
+          const home = db.teams.find((t) => t.id === m.homeTeamId);
+          const away = db.teams.find((t) => t.id === m.awayTeamId);
+          return {
+            matchNumber: m.matchNumber ?? null,
+            status: m.status,
+            homeTeam: home?.name ?? null,
+            awayTeam: away?.name ?? null,
+            homeGoals: m.homeGoals,
+            awayGoals: m.awayGoals,
+          };
+        });
+      send(response, 200, { matches: summary });
+    }),
+
     route('GET', /^\/live-score\/provider$/, (_request, response) => {
       send(response, 200, liveScoreProvider.getStatus());
     }),
