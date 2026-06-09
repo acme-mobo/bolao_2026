@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildSyncLogEntry, getApiFootballCapabilities, shouldTrackApiFootballQuota } from '../src/wc-sync.js';
+import {
+  buildSyncLogEntry,
+  buildSyncResponse,
+  getApiFootballCapabilities,
+  shouldTrackApiFootballQuota,
+} from '../src/wc-sync.js';
 
 test('plano free bloqueia endpoints por season mas permite fixtures por data', () => {
   const capabilities = getApiFootballCapabilities({ plan: 'free', season: 2026 });
@@ -77,4 +82,37 @@ test('buildSyncLogEntry monta log resumido sem payload bruto', () => {
     status: 'ok',
     trigger: 'sync',
   });
+});
+
+test('buildSyncResponse destaca status, quota e resumo das operacoes', () => {
+  const response = buildSyncResponse({
+    startedAt: '2026-06-09T18:00:00.000Z',
+    finishedAt: '2026-06-09T18:00:01.000Z',
+    status: 'ok',
+    mode: 'normal',
+    plan: 'free',
+    usedBefore: 7,
+    usedAfter: 8,
+    apiCallsMade: 1,
+    ops: [
+      { op: 'allFixtures', skipped: true, reason: 'indisponivel' },
+      { op: 'daily', ok: true, count: 0, fixtures: [{ fixtureId: 1 }] },
+    ],
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(response.skipped, false);
+  assert.equal(response.durationMs, 1000);
+  assert.deepEqual(response.quota, {
+    usedBefore: 7,
+    usedAfter: 8,
+    limit: 100,
+    remaining: 92,
+    apiCallsMade: 1,
+  });
+  assert.deepEqual(response.summary, { total: 2, ok: 1, skipped: 1, errors: 0 });
+  assert.match(response.message, /Sync executado/);
+  assert.equal(response.apiCallsMade, 1);
+  assert.equal(response.used, 8);
+  assert.equal(response.ops[1].fixtures, undefined);
 });

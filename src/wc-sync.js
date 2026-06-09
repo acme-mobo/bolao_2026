@@ -197,6 +197,63 @@ export function buildSyncLogEntry({
   };
 }
 
+function summarizeSyncResponseOps(ops) {
+  return {
+    total:   ops.length,
+    ok:      ops.filter((op) => op.ok).length,
+    skipped: ops.filter((op) => op.skipped).length,
+    errors:  ops.filter((op) => op.error).length,
+  };
+}
+
+function buildSyncMessage({ status, reason, ops, apiCallsMade, usedBefore, usedAfter, mode }) {
+  if (status === 'skipped') {
+    if (reason === 'cache-only') return `Sync ignorado: modo cache-only (${usedAfter}/${DAILY_LIMIT} chamadas usadas).`;
+    return `Sync ignorado: ${reason}.`;
+  }
+  if (status === 'error') {
+    return `Sync finalizado com erro em ${summarizeSyncResponseOps(ops).errors} operação(ões).`;
+  }
+  const okCount = summarizeSyncResponseOps(ops).ok;
+  return `Sync executado em modo ${mode}: ${okCount} operação(ões) concluída(s), ${apiCallsMade} chamada(s) API-Football, uso ${usedBefore}->${usedAfter}.`;
+}
+
+export function buildSyncResponse({
+  startedAt,
+  finishedAt,
+  status,
+  reason = null,
+  mode,
+  plan,
+  ops = [],
+  apiCallsMade = 0,
+  usedBefore,
+  usedAfter,
+}) {
+  return {
+    status,
+    skipped: status === 'skipped',
+    reason,
+    message: buildSyncMessage({ status, reason, ops, apiCallsMade, usedBefore, usedAfter, mode }),
+    startedAt,
+    finishedAt,
+    durationMs: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+    mode,
+    plan,
+    quota: {
+      usedBefore,
+      usedAfter,
+      limit: DAILY_LIMIT,
+      remaining: Math.max(DAILY_LIMIT - usedAfter, 0),
+      apiCallsMade,
+    },
+    summary: summarizeSyncResponseOps(ops),
+    ops: ops.map(summarizeSyncOp),
+    apiCallsMade,
+    used: usedAfter,
+  };
+}
+
 // ─── Bridge para o bolão (scoring de palpites) ────────
 // Atualiza db.matches com placares da API-Football para que o scoring funcione
 async function bridgeToBolaoDB(fixtures, providerName = 'api-football') {
@@ -312,10 +369,10 @@ export async function orchestrate() {
   const todayUtc = new Date().toISOString().slice(0, 10);
   const usage    = await getUsage(todayUtc);
   const mode     = getMode(usage.used);
-  const writeRunLog = async ({ status, ops = [], usedAfter = usage.used, apiCallsMade = 0, mode: logMode = mode }) => {
+  const writeRunLog = async ({ status, ops = [], usedAfter = usage.used, apiCallsMade = 0, mode: logMode = mode, finishedAt = new Date().toISOString() }) => {
     await writeSyncLog(buildSyncLogEntry({
       startedAt,
-      finishedAt: new Date().toISOString(),
+      finishedAt,
       mode: logMode,
       plan: capabilities.plan,
       usedBefore: usage.used,
@@ -329,8 +386,18 @@ export async function orchestrate() {
 
   if (mode === 'cache-only') {
     await writeSyncStatus({ mode, message: 'Cache-only: limite diário atingido' });
-    await writeRunLog({ status: 'skipped' });
-    return { mode, skipped: true, reason: 'cache-only', used: usage.used };
+    const finishedAt = new Date().toISOString();
+    await writeRunLog({ status: 'skipped', finishedAt });
+    return buildSyncResponse({
+      startedAt,
+      finishedAt,
+      status: 'skipped',
+      reason: 'cache-only',
+      mode,
+      plan: capabilities.plan,
+      usedBefore: usage.used,
+      usedAfter: usage.used,
+    });
   }
 
   // Lê status atual de sincronização
@@ -400,13 +467,24 @@ export async function orchestrate() {
   }
 
   if (!pending.length) {
-    await writeRunLog({ status: 'skipped', ops: skipped });
+    const reason = skipped.length ? 'operações remotas indisponíveis no plano atual' : 'nada a sincronizar';
+    const finishedAt = new Date().toISOString();
+    await writeRunLog({ status: 'skipped', ops: skipped, finishedAt });
     return {
+      ...buildSyncResponse({
+        startedAt,
+        finishedAt,
+        status: 'skipped',
+        reason,
+        mode,
+        plan: capabilities.plan,
+        ops: skipped,
+        usedBefore: usage.used,
+        usedAfter: usage.used,
+      }),
       mode,
       plan: capabilities.plan,
       skipped: true,
-      reason: skipped.length ? 'operações remotas indisponíveis no plano atual' : 'nada a sincronizar',
-      ops: skipped,
       used: usage.used,
     };
   }
@@ -445,15 +523,27 @@ export async function orchestrate() {
 
   const ops = [...skipped, ...results];
   const logStatus = results.some((result) => result.error) ? 'error' : 'ok';
+  const finishedAt = new Date().toISOString();
   await writeRunLog({
     status: logStatus,
     ops,
     usedAfter: updatedUsed,
     apiCallsMade,
     mode: updatedMode,
+    finishedAt,
   });
 
-  return { mode: updatedMode, plan: capabilities.plan, ops, apiCallsMade, used: updatedUsed };
+  return buildSyncResponse({
+    startedAt,
+    finishedAt,
+    status: logStatus,
+    mode: updatedMode,
+    plan: capabilities.plan,
+    ops,
+    apiCallsMade,
+    usedBefore: usage.used,
+    usedAfter: updatedUsed,
+  });
 }
 
 // ─── Seed local (dados de world-cup-2026-data.js) ────
