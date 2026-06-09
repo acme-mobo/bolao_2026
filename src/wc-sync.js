@@ -339,13 +339,14 @@ export async function orchestrate() {
   let apiCallsMade = 0;
 
   for (const { name, fn } of pending) {
+    const beforeRequestCount = client.requestCount;
     try {
       const result = await fn();
-      if (!result.skipped) apiCallsMade++;
       results.push({ op: name, ...result });
     } catch (err) {
       results.push({ op: name, error: err.message });
-      apiCallsMade++; // API-Football conta mesmo requests com erro
+    } finally {
+      apiCallsMade += client.requestCount - beforeRequestCount;
     }
   }
 

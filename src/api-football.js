@@ -65,6 +65,7 @@ export class ApiFootballClient {
     this.leagueId = options.leagueId ?? config.apiFootballLeagueId;
     this.season   = options.season   ?? config.apiFootballSeason;
     this.baseUrl  = options.baseUrl  ?? BASE_URL;
+    this.requestCount = 0;
   }
 
   get configured() {
@@ -82,6 +83,7 @@ export class ApiFootballClient {
     const res = await fetch(url.toString(), {
       headers: { 'x-apisports-key': this.apiKey, accept: 'application/json' },
     });
+    this.requestCount++;
 
     const body = await res.json();
 
