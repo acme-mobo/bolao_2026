@@ -60,6 +60,17 @@ function buildGroups(db) {
     }));
 }
 
+const summaryDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function matchLocalDate(startsAt) {
+  return startsAt ? summaryDateFormatter.format(new Date(startsAt)) : null;
+}
+
 export function createRouter(store, options = {}) {
   const liveScoreProvider = options.liveScoreProvider ?? new FootballDataLiveScoreProvider();
   const routes = [
@@ -178,10 +189,9 @@ export function createRouter(store, options = {}) {
       let matches = db.matches;
       if (dateParam) {
         const day = dateParam.slice(0, 10);
-        // Match strictly against the stored startsAt date string (UTC date part).
-        matches = matches.filter((m) => m.startsAt && m.startsAt.slice(0, 10) === day);
+        matches = matches.filter((m) => matchLocalDate(m.startsAt) === day);
       }
-      const summary = matches
+      const summarizedMatches = matches
         .sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0))
         .map((m) => {
           const home = db.teams.find((t) => t.id === m.homeTeamId);
@@ -197,7 +207,8 @@ export function createRouter(store, options = {}) {
             awayGoals: m.awayGoals,
           };
         });
-      send(response, 200, { matches: summary });
+
+      send(response, 200, { matches: summarizedMatches });
     }),
 
     route('GET', /^\/live-score\/provider$/, (_request, response) => {

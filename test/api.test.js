@@ -95,6 +95,67 @@ test('retorna bolao ativo e inclui usuario automaticamente', async () => {
   );
 });
 
+test('summary agrega partidas pela data local de Sao Paulo', async () => {
+  const api = await createApi();
+  await api.store.transaction((db) => {
+    db.teams = worldCup2026Teams.map(([name, code, group]) => ({ id: `team_${code}`, name, code, group }));
+    db.matches = worldCup2026GroupMatches.slice(0, 3).map(
+      ([matchNumber, group, homeCode, awayCode, startsAt, venue, city]) => ({
+        id: `match_${matchNumber}`,
+        matchNumber,
+        homeTeamId: `team_${homeCode}`,
+        awayTeamId: `team_${awayCode}`,
+        stage: 'group',
+        group,
+        startsAt,
+        lockAt: startsAt,
+        venue,
+        city,
+        status: 'scheduled',
+        homeGoals: null,
+        awayGoals: null,
+        createdAt: '2026-06-01T00:00:00.000Z',
+      }),
+    );
+  });
+
+  const june11 = await request(api, '/matches/summary?date=2026-06-11');
+  assert.equal(june11.status, 200);
+  assert.deepEqual(Object.keys(june11.body), ['matches']);
+  assert.deepEqual(june11.body.matches, [
+    {
+      matchNumber: 1,
+      status: 'scheduled',
+      homeTeam: 'Mexico',
+      awayTeam: 'Africa do Sul',
+      homeCode: 'MEX',
+      awayCode: 'RSA',
+      homeGoals: null,
+      awayGoals: null,
+    },
+    {
+      matchNumber: 2,
+      status: 'scheduled',
+      homeTeam: 'Coreia do Sul',
+      awayTeam: 'Tchequia',
+      homeCode: 'KOR',
+      awayCode: 'CZE',
+      homeGoals: null,
+      awayGoals: null,
+    },
+  ]);
+
+  const june12 = await request(api, '/matches/summary?date=2026-06-12');
+  assert.equal(june12.status, 200);
+  assert.deepEqual(Object.keys(june12.body), ['matches']);
+  assert.deepEqual(june12.body.matches.map((match) => match.matchNumber), [3]);
+
+  const all = await request(api, '/matches/summary');
+  assert.equal(all.status, 200);
+  assert.deepEqual(Object.keys(all.body), ['matches']);
+  assert.deepEqual(all.body.matches.map((match) => match.matchNumber), [1, 2, 3]);
+});
+
 test('sincroniza resultado via provider de live score', async () => {
   const fakeProvider = {
     getStatus() {
