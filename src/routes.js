@@ -190,6 +190,8 @@ export function createRouter(store, options = {}) {
             status: m.status,
             homeTeam: home?.name ?? null,
             awayTeam: away?.name ?? null,
+            homeCode: home?.code ?? null,
+            awayCode: away?.code ?? null,
             homeGoals: m.homeGoals,
             awayGoals: m.awayGoals,
           };
