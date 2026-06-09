@@ -110,17 +110,8 @@ export class ApiFootballClient {
 
   // Jogos de uma data específica com fallback para plano free
   async fetchDailyFixtures(date) {
-    try {
-      // Tentativa 1: com league + season (pode ser bloqueado no plano free)
-      const json = await this._get('/fixtures', {
-        league: this.leagueId, season: this.season, date,
-      });
-      return this._filterAndNormalize(json.response ?? []);
-    } catch {
-      // Tentativa 2: só date — retorna tudo do dia, filtramos a Copa no backend
-      const json = await this._get('/fixtures', { date });
-      return this._filterAndNormalize(json.response ?? []);
-    }
+    const json = await this._get('/fixtures', { date });
+    return this._filterAndNormalize(json.response ?? []);
   }
 
   // Jogos ao vivo — sem filtro de liga para contornar restrição do plano free
