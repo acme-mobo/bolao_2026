@@ -21,5 +21,9 @@ export function optionalDate(value, field) {
   if (value === undefined || value === null || value === '') return undefined;
   const date = new Date(value);
   assert(!Number.isNaN(date.getTime()), 400, `Campo ${field} deve ser uma data valida`);
+  // Preserve the original provided date string to avoid unintended timezone
+  // shifts when converting to ISO. The application treats stored `startsAt`
+  // values as authoritative, so return the original string when available.
+  if (typeof value === 'string') return value.trim();
   return date.toISOString();
 }
