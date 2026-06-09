@@ -183,12 +183,15 @@ export function createRouter(store, options = {}) {
           // match when stored UTC date equals requested day
           if (m.startsAt.slice(0, 10) === day) return true;
           // also match when the local (server) date for startsAt equals requested day
-          const local = new Date(m.startsAt);
-          const y = local.getFullYear();
-          const mo = String(local.getMonth() + 1).padStart(2, '0');
-          const d = String(local.getDate()).padStart(2, '0');
-          const localYmd = `${y}-${mo}-${d}`;
-          return localYmd === day;
+          try {
+            const localYmd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(
+              new Date(m.startsAt),
+            );
+            if (localYmd === day) return true;
+          } catch (e) {
+            // ignore timezone formatting errors and fallthrough
+          }
+          return false;
         });
       }
       const summary = matches
