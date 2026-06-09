@@ -465,20 +465,29 @@ export function createRouter(store, options = {}) {
 
   return async function router(request, response) {
     const url = parseUrl(request);
-    if (request.method === 'GET' && url.pathname === '/health') {
+    // allow routes to be called with optional `/api` prefix (e.g. `/api/matches`)
+    const pathname = url.pathname.startsWith('/api') ? url.pathname.slice(4) || '/' : url.pathname;
+    if (request.method === 'GET' && pathname === '/health') {
       send(response, 200, { status: 'ok' });
       return;
     }
 
     const db = await store.load();
-    const found = routes.find((candidate) => candidate.method === request.method && candidate.pattern.test(url.pathname));
+    const found = routes.find((candidate) => candidate.method === request.method && candidate.pattern.test(pathname));
     if (!found) return notFound();
-    const match = found.pattern.exec(url.pathname);
-    const result = await found.handler(request, response, db, match);
-    if (db.__dirty) {
-      await store.save();
-      db.__dirty = false;
+    const match = found.pattern.exec(pathname);
+    // attach adjusted pathname back to request.url so helpers (parseUrl) continue to work
+    const originalUrl = request.url;
+    try {
+      request.url = request.url.replace(url.pathname, pathname);
+      const result = await found.handler(request, response, db, match);
+      if (db.__dirty) {
+        await store.save();
+        db.__dirty = false;
+      }
+      return result;
+    } finally {
+      request.url = originalUrl;
     }
-    return result;
   };
 }
