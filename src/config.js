@@ -28,5 +28,6 @@ export const config = {
   apiFootballKey: process.env.API_FOOTBALL_KEY ?? '',
   apiFootballLeagueId: Number(process.env.API_FOOTBALL_LEAGUE_ID ?? 1),
   apiFootballSeason: Number(process.env.API_FOOTBALL_SEASON ?? 2026),
+  apiFootballPlan: (process.env.API_FOOTBALL_PLAN ?? 'free').toLowerCase(),
   apiFootballSyncSecret: process.env.API_FOOTBALL_SYNC_SECRET ?? '',
 };

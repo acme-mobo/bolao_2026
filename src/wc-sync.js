@@ -11,6 +11,7 @@
 
 import { FieldValue } from 'firebase-admin/firestore';
 import { ApiFootballClient } from './api-football.js';
+import { config } from './config.js';
 import { getAdminFirestore } from './firebase-admin.js';
 import { store } from './store.js';
 import { worldCup2026GroupMatches, worldCup2026Teams } from './world-cup-2026-data.js';
@@ -30,6 +31,25 @@ const INTERVALS = {
   daily:       [   60,    120,      180  ],
   live:        [   10,     15,       20  ],
 };
+
+const FREE_PLAN_SUPPORTED_SEASONS = new Set([2022, 2023, 2024]);
+
+export function getApiFootballCapabilities(options = {}) {
+  const plan = options.plan ?? config.apiFootballPlan;
+  const season = options.season ?? config.apiFootballSeason;
+  const isFreePlan = plan === 'free';
+  const seasonSupported = !isFreePlan || FREE_PLAN_SUPPORTED_SEASONS.has(season);
+  return {
+    plan,
+    canSyncSeasonFixtures: seasonSupported,
+    canSyncStandings: seasonSupported,
+    canSyncDailyFixtures: seasonSupported,
+    canSyncLive: true,
+    seasonUnsupportedReason: isFreePlan
+      ? 'API-Football Free não libera season=2026 em fixtures/standings; use /api/sync/seed para o calendário local ou API_FOOTBALL_PLAN=paid.'
+      : null,
+  };
+}
 
 // ─── Firestore refs ───────────────────────────────────
 const fs         = () => getAdminFirestore();
@@ -236,6 +256,8 @@ export async function orchestrate() {
     return { skipped: true, reason: 'API_FOOTBALL_KEY não configurado' };
   }
 
+  const capabilities = getApiFootballCapabilities();
+
   const todayUtc = new Date().toISOString().slice(0, 10);
   const usage    = await getUsage(todayUtc);
   const mode     = getMode(usage.used);
@@ -264,20 +286,33 @@ export async function orchestrate() {
 
   // ── Decide o que sincronizar ───────────────────────
   const pending = [];
+  const skipped = [];
 
   const allInterval = intervalFor('allFixtures', mode);
   if (allInterval !== null && minutesSince(status.lastAllFixtures) > allInterval) {
-    pending.push({ name: 'allFixtures', fn: () => doSyncAllFixtures(client) });
+    if (capabilities.canSyncSeasonFixtures) {
+      pending.push({ name: 'allFixtures', fn: () => doSyncAllFixtures(client) });
+    } else {
+      skipped.push({ op: 'allFixtures', skipped: true, reason: capabilities.seasonUnsupportedReason });
+    }
   }
 
   const standingsInterval = intervalFor('standings', mode);
   if (standingsInterval !== null && minutesSince(status.lastStandings) > standingsInterval) {
-    pending.push({ name: 'standings', fn: () => doSyncStandings(client) });
+    if (capabilities.canSyncStandings) {
+      pending.push({ name: 'standings', fn: () => doSyncStandings(client) });
+    } else {
+      skipped.push({ op: 'standings', skipped: true, reason: capabilities.seasonUnsupportedReason });
+    }
   }
 
   const dailyInterval = intervalFor('daily', mode);
   if (dailyInterval !== null && minutesSince(status.lastDailyFixtures) > dailyInterval) {
-    pending.push({ name: 'daily', fn: () => doSyncDaily(client, todayUtc) });
+    if (capabilities.canSyncDailyFixtures) {
+      pending.push({ name: 'daily', fn: () => doSyncDaily(client, todayUtc) });
+    } else {
+      skipped.push({ op: 'daily', skipped: true, reason: capabilities.seasonUnsupportedReason });
+    }
   }
 
   const liveInterval = intervalFor('live', mode);
@@ -289,7 +324,14 @@ export async function orchestrate() {
   }
 
   if (!pending.length) {
-    return { mode, skipped: true, reason: 'nada a sincronizar', used: usage.used };
+    return {
+      mode,
+      plan: capabilities.plan,
+      skipped: true,
+      reason: skipped.length ? 'operações remotas indisponíveis no plano atual' : 'nada a sincronizar',
+      ops: skipped,
+      used: usage.used,
+    };
   }
 
   // ── Executa operações e rastreia uso ───────────────
@@ -320,7 +362,7 @@ export async function orchestrate() {
     message:    `Atualizado às ${hhmm}`,
   });
 
-  return { mode: updatedMode, ops: results, apiCallsMade, used: updatedUsed };
+  return { mode: updatedMode, plan: capabilities.plan, ops: [...skipped, ...results], apiCallsMade, used: updatedUsed };
 }
 
 // ─── Seed local (dados de world-cup-2026-data.js) ────

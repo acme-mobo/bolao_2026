@@ -78,6 +78,22 @@ Para desenvolvimento local, `GOOGLE_APPLICATION_CREDENTIALS=/caminho/service-acc
 
 O projeto usa GitHub Actions para chamar `POST /api/sync` a cada 10 minutos no repositório público.
 
+API-Football:
+
+- `API_FOOTBALL_KEY`: chave da API-Football.
+- `API_FOOTBALL_LEAGUE_ID=1`: FIFA World Cup.
+- `API_FOOTBALL_SEASON=2026`.
+- `API_FOOTBALL_PLAN=free|paid`: padrão `free`.
+
+No plano Free, a API-Football bloqueia chamadas por temporada para a Copa 2026, como
+`/fixtures?league=1&season=2026` e `/standings?league=1&season=2026`. Nesse modo, rode
+`POST /api/sync/seed` uma vez para popular o calendário local e deixe o cron em `POST /api/sync`;
+ele não gastará chamadas tentando endpoints bloqueados e só tentará live score quando houver jogo
+próximo/ativo no cache local.
+
+Com plano pago, configure `API_FOOTBALL_PLAN=paid` para liberar o sync completo de fixtures,
+standings, daily e live.
+
 Secrets necessários no repositório GitHub:
 
 - `SYNC_URL`: URL pública do deploy, por exemplo `https://bolao-2026.vercel.app`
