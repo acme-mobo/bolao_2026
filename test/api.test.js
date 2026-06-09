@@ -161,13 +161,13 @@ test('sincroniza resultado via provider de live score', async () => {
     getStatus() {
       return { provider: 'fake-live-score', configured: true };
     },
-    async fetchMatches() {
+    async fetchLiveFixtures() {
       return [
         {
           externalId: '1001',
           status: 'finished',
-          homeTeamCode: 'MEX',
-          awayTeamCode: 'RSA',
+          homeCode: 'MEX',
+          awayCode: 'RSA',
           homeGoals: 2,
           awayGoals: 0,
           lastUpdated: '2026-06-11T21:00:00.000Z',

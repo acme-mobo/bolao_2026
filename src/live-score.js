@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { HttpError } from './errors.js';
+import { ApiFootballClient } from './api-football.js';
 
 const statusMap = {
   SCHEDULED: 'scheduled',
@@ -34,6 +35,8 @@ export class FootballDataLiveScoreProvider {
     this.baseUrl = options.baseUrl ?? config.footballDataBaseUrl;
     this.competitionCode = options.competitionCode ?? config.liveScoreCompetitionCode;
     this.season = options.season ?? config.liveScoreSeason;
+    this.requestCount = 0;
+    this.quotaBucket = null;
   }
 
   getStatus() {
@@ -45,7 +48,11 @@ export class FootballDataLiveScoreProvider {
     };
   }
 
-  async fetchMatches() {
+  get configured() {
+    return Boolean(this.token);
+  }
+
+  async fetchLiveFixtures() {
     if (!this.token) {
       throw new HttpError(503, 'FOOTBALL_DATA_API_TOKEN nao configurado');
     }
@@ -59,6 +66,7 @@ export class FootballDataLiveScoreProvider {
         accept: 'application/json',
       },
     });
+    this.requestCount++;
 
     if (!response.ok) {
       throw new HttpError(response.status, 'Falha ao consultar football-data.org', await response.text());
@@ -69,29 +77,85 @@ export class FootballDataLiveScoreProvider {
       const score = normalizeScore(match);
       return {
         externalId: String(match.id),
-        utcDate: match.utcDate,
+        fixtureId: String(match.id),
+        date: match.utcDate,
+        statusShort: match.status,
+        statusElapsed: null,
         status: statusMap[match.status] ?? 'scheduled',
-        homeTeamCode: normalizeCode(match.homeTeam),
-        awayTeamCode: normalizeCode(match.awayTeam),
-        homeTeamName: match.homeTeam?.name ?? '',
-        awayTeamName: match.awayTeam?.name ?? '',
+        round: null,
+        group: null,
+        venue: null,
+        city: null,
+        homeCode: normalizeCode(match.homeTeam),
+        awayCode: normalizeCode(match.awayTeam),
+        homeName: match.homeTeam?.name ?? '',
+        awayName: match.awayTeam?.name ?? '',
+        homeLogo: null,
+        awayLogo: null,
         homeGoals: score.home,
         awayGoals: score.away,
         rawStatus: match.status,
-        lastUpdated: match.lastUpdated,
+        updatedAt: match.lastUpdated,
       };
     });
   }
+
+  async fetchMatches() {
+    return this.fetchLiveFixtures();
+  }
+}
+
+export class ApiFootballLiveScoreProvider {
+  constructor(options = {}) {
+    this.client = options.client ?? new ApiFootballClient(options);
+    this.quotaBucket = 'api-football';
+  }
+
+  get requestCount() {
+    return this.client.requestCount;
+  }
+
+  get configured() {
+    return this.client.configured;
+  }
+
+  getStatus() {
+    return {
+      provider: 'api-football',
+      configured: this.configured,
+      leagueId: this.client.leagueId,
+      season: this.client.season,
+      quotaBucket: this.quotaBucket,
+    };
+  }
+
+  async fetchLiveFixtures() {
+    return this.client.fetchLiveFixtures();
+  }
+}
+
+export function createLiveScoreProvider(options = {}) {
+  const provider = options.provider ?? config.liveScoreProvider;
+  if (provider === 'api-football') return new ApiFootballLiveScoreProvider(options);
+  if (provider === 'football-data') return new FootballDataLiveScoreProvider(options);
+  throw new Error(`LIVE_SCORE_PROVIDER invalido: ${provider}`);
 }
 
 function sameFixture(localMatch, remoteMatch, teamsById) {
   const home = teamsById.get(localMatch.homeTeamId);
   const away = teamsById.get(localMatch.awayTeamId);
-  return home?.code === remoteMatch.homeTeamCode && away?.code === remoteMatch.awayTeamCode;
+  return home?.code === remoteMatch.homeCode && away?.code === remoteMatch.awayCode;
 }
 
-export async function syncLiveScores(db, provider = new FootballDataLiveScoreProvider()) {
-  const remoteMatches = await provider.fetchMatches();
+function externalIdFor(remoteMatch) {
+  return String(remoteMatch.externalId ?? remoteMatch.fixtureId);
+}
+
+function lastUpdatedFor(remoteMatch, fallback) {
+  return remoteMatch.lastUpdated ?? remoteMatch.updatedAt ?? fallback;
+}
+
+export function applyLiveFixturesToDb(db, remoteMatches, providerStatus) {
   const teamsById = new Map(db.teams.map((team) => [team.id, team]));
   const now = new Date().toISOString();
   const changes = [];
@@ -107,9 +171,9 @@ export async function syncLiveScores(db, provider = new FootballDataLiveScorePro
       externalMatchId: localMatch.externalMatchId,
     };
 
-    localMatch.externalProvider = provider.getStatus().provider;
-    localMatch.externalMatchId = remoteMatch.externalId;
-    localMatch.externalLastUpdated = remoteMatch.lastUpdated ?? now;
+    localMatch.externalProvider = providerStatus.provider;
+    localMatch.externalMatchId = externalIdFor(remoteMatch);
+    localMatch.externalLastUpdated = lastUpdatedFor(remoteMatch, now);
     localMatch.status = remoteMatch.status;
 
     if (remoteMatch.homeGoals !== null && remoteMatch.awayGoals !== null) {
@@ -139,10 +203,15 @@ export async function syncLiveScores(db, provider = new FootballDataLiveScorePro
   }
 
   return {
-    provider: provider.getStatus(),
+    provider: providerStatus,
     fetched: remoteMatches.length,
     updated: changes.length,
     changes,
     syncedAt: now,
   };
+}
+
+export async function syncLiveScores(db, provider = createLiveScoreProvider()) {
+  const remoteMatches = await provider.fetchLiveFixtures();
+  return applyLiveFixturesToDb(db, remoteMatches, provider.getStatus());
 }

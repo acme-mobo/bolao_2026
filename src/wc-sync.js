@@ -13,6 +13,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { ApiFootballClient } from './api-football.js';
 import { config } from './config.js';
 import { getAdminFirestore } from './firebase-admin.js';
+import { applyLiveFixturesToDb, createLiveScoreProvider } from './live-score.js';
 import { store } from './store.js';
 import { worldCup2026GroupMatches, worldCup2026Teams } from './world-cup-2026-data.js';
 
@@ -43,10 +44,10 @@ export function getApiFootballCapabilities(options = {}) {
     plan,
     canSyncSeasonFixtures: seasonSupported,
     canSyncStandings: seasonSupported,
-    canSyncDailyFixtures: seasonSupported,
+    canSyncDailyFixtures: true,
     canSyncLive: true,
     seasonUnsupportedReason: isFreePlan
-      ? 'API-Football Free não libera season=2026 em fixtures/standings; use /api/sync/seed para o calendário local ou API_FOOTBALL_PLAN=paid.'
+      ? 'API-Football Free não libera endpoints por season=2026; use /api/sync/seed para o calendário completo/local ou API_FOOTBALL_PLAN=paid.'
       : null,
   };
 }
@@ -108,6 +109,10 @@ function intervalFor(op, mode) {
   return INTERVALS[op]?.[idx] ?? null;
 }
 
+export function shouldTrackApiFootballQuota(quotaSource) {
+  return quotaSource.quotaBucket === undefined || quotaSource.quotaBucket === 'api-football';
+}
+
 // ─── Escritas no Firestore ────────────────────────────
 async function writeFixturesBatch(fixtures) {
   if (!fixtures.length) return;
@@ -150,7 +155,7 @@ async function writeSyncStatus(patch) {
 
 // ─── Bridge para o bolão (scoring de palpites) ────────
 // Atualiza db.matches com placares da API-Football para que o scoring funcione
-async function bridgeToBolaoDB(fixtures) {
+async function bridgeToBolaoDB(fixtures, providerName = 'api-football') {
   if (!fixtures.length) return [];
   const db = await store.load();
   const teamsById = new Map(db.teams.map((t) => [t.id, t]));
@@ -169,8 +174,8 @@ async function bridgeToBolaoDB(fixtures) {
 
     const before = { status: local.status, homeGoals: local.homeGoals, awayGoals: local.awayGoals };
 
-    local.externalProvider  = 'api-football';
-    local.externalMatchId   = String(remote.fixtureId);
+    local.externalProvider  = providerName;
+    local.externalMatchId   = String(remote.externalId ?? remote.fixtureId);
     local.externalLastUpdated = now;
     local.status = remote.status;
 
@@ -229,14 +234,17 @@ async function doSyncDaily(client, date) {
   });
 }
 
-async function doSyncLive(client) {
+async function doSyncLive(provider) {
   return runWithLock('live', async () => {
-    const fixtures = await client.fetchLiveFixtures();
+    const fixtures = await provider.fetchLiveFixtures();
+    const providerStatus = provider.getStatus();
     await writeLiveDoc(fixtures);
     await writeFixturesBatch(fixtures);
-    const changes = await bridgeToBolaoDB(fixtures);
+    const db = await store.load();
+    const result = applyLiveFixturesToDb(db, fixtures, providerStatus);
+    if (result.updated > 0) await store.save();
     await writeSyncStatus({ lastLive: new Date().toISOString(), liveCount: fixtures.length });
-    return { ok: true, count: fixtures.length, changes: changes.length };
+    return { ok: true, count: fixtures.length, changes: result.updated, provider: providerStatus.provider };
   });
 }
 
@@ -252,9 +260,7 @@ async function doSyncStandings(client) {
 // ─── Orquestrador principal ───────────────────────────
 export async function orchestrate() {
   const client = new ApiFootballClient();
-  if (!client.configured) {
-    return { skipped: true, reason: 'API_FOOTBALL_KEY não configurado' };
-  }
+  const liveProvider = createLiveScoreProvider();
 
   const capabilities = getApiFootballCapabilities();
 
@@ -290,7 +296,9 @@ export async function orchestrate() {
 
   const allInterval = intervalFor('allFixtures', mode);
   if (allInterval !== null && minutesSince(status.lastAllFixtures) > allInterval) {
-    if (capabilities.canSyncSeasonFixtures) {
+    if (!client.configured) {
+      skipped.push({ op: 'allFixtures', skipped: true, reason: 'API_FOOTBALL_KEY não configurado' });
+    } else if (capabilities.canSyncSeasonFixtures) {
       pending.push({ name: 'allFixtures', fn: () => doSyncAllFixtures(client) });
     } else {
       skipped.push({ op: 'allFixtures', skipped: true, reason: capabilities.seasonUnsupportedReason });
@@ -299,7 +307,9 @@ export async function orchestrate() {
 
   const standingsInterval = intervalFor('standings', mode);
   if (standingsInterval !== null && minutesSince(status.lastStandings) > standingsInterval) {
-    if (capabilities.canSyncStandings) {
+    if (!client.configured) {
+      skipped.push({ op: 'standings', skipped: true, reason: 'API_FOOTBALL_KEY não configurado' });
+    } else if (capabilities.canSyncStandings) {
       pending.push({ name: 'standings', fn: () => doSyncStandings(client) });
     } else {
       skipped.push({ op: 'standings', skipped: true, reason: capabilities.seasonUnsupportedReason });
@@ -308,7 +318,9 @@ export async function orchestrate() {
 
   const dailyInterval = intervalFor('daily', mode);
   if (dailyInterval !== null && minutesSince(status.lastDailyFixtures) > dailyInterval) {
-    if (capabilities.canSyncDailyFixtures) {
+    if (!client.configured) {
+      skipped.push({ op: 'daily', skipped: true, reason: 'API_FOOTBALL_KEY não configurado' });
+    } else if (capabilities.canSyncDailyFixtures) {
       pending.push({ name: 'daily', fn: () => doSyncDaily(client, todayUtc) });
     } else {
       skipped.push({ op: 'daily', skipped: true, reason: capabilities.seasonUnsupportedReason });
@@ -320,7 +332,11 @@ export async function orchestrate() {
     && minutesSince(status.lastLive) > liveInterval
     && (hasLiveNow || hasTodayMatches);
   if (shouldSyncLive) {
-    pending.push({ name: 'live', fn: () => doSyncLive(client) });
+    if (liveProvider.configured) {
+      pending.push({ name: 'live', fn: () => doSyncLive(liveProvider), quotaSource: liveProvider });
+    } else {
+      skipped.push({ op: 'live', skipped: true, reason: `${liveProvider.getStatus().provider} não configurado` });
+    }
   }
 
   if (!pending.length) {
@@ -338,15 +354,18 @@ export async function orchestrate() {
   const results = [];
   let apiCallsMade = 0;
 
-  for (const { name, fn } of pending) {
-    const beforeRequestCount = client.requestCount;
+  for (const { name, fn, quotaSource = client } of pending) {
+    const trackApiFootballQuota = shouldTrackApiFootballQuota(quotaSource);
+    const beforeRequestCount = trackApiFootballQuota ? quotaSource.requestCount : 0;
     try {
       const result = await fn();
       results.push({ op: name, ...result });
     } catch (err) {
       results.push({ op: name, error: err.message });
     } finally {
-      apiCallsMade += client.requestCount - beforeRequestCount;
+      if (trackApiFootballQuota) {
+        apiCallsMade += quotaSource.requestCount - beforeRequestCount;
+      }
     }
   }
 

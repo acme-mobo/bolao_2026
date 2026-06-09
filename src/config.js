@@ -22,6 +22,7 @@ export const config = {
   firebaseWebAppId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? '',
   footballDataApiToken: process.env.FOOTBALL_DATA_API_TOKEN ?? '',
   footballDataBaseUrl: process.env.FOOTBALL_DATA_BASE_URL ?? 'https://api.football-data.org/v4',
+  liveScoreProvider: (process.env.LIVE_SCORE_PROVIDER ?? 'api-football').toLowerCase(),
   liveScoreCompetitionCode: process.env.LIVE_SCORE_COMPETITION_CODE ?? 'WC',
   liveScoreSeason: Number(process.env.LIVE_SCORE_SEASON ?? 2026),
   // API-Football (api-sports.io)

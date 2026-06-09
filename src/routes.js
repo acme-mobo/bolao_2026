@@ -2,7 +2,7 @@ import { createToken, deleteFirebaseAuthUser, hashPassword, requireAdmin, requir
 import { assert } from './errors.js';
 import { newId } from './id.js';
 import { notFound, parseUrl, readJson, sanitizeUser, send } from './http.js';
-import { FootballDataLiveScoreProvider, syncLiveScores } from './live-score.js';
+import { createLiveScoreProvider, syncLiveScores } from './live-score.js';
 import { buildLeaderboard, scorePrediction } from './scoring.js';
 import { optionalDate, requireEmail, requireInteger, requireString } from './validation.js';
 
@@ -72,7 +72,7 @@ function matchLocalDate(startsAt) {
 }
 
 export function createRouter(store, options = {}) {
-  const liveScoreProvider = options.liveScoreProvider ?? new FootballDataLiveScoreProvider();
+  const liveScoreProvider = options.liveScoreProvider ?? createLiveScoreProvider();
   const routes = [
     route('GET', /^\/health$/, (_request, response) => {
       send(response, 200, { status: 'ok' });
