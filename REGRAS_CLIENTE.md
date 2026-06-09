@@ -274,7 +274,8 @@ Regras de UX:
 
 Provider atual:
 
-- `football-data.org`
+- Configuravel por `LIVE_SCORE_PROVIDER=api-football|football-data`
+- Padrao: `api-football`
 - Competicao padrao: `WC`
 - Temporada padrao: `2026`
 
@@ -283,6 +284,8 @@ Regras:
 - `GET /live-score/provider` informa se o provider esta configurado.
 - `POST /live-score/sync` e rota admin.
 - Sync atualiza jogos locais usando selecoes mandante e visitante.
+- A API normaliza os dados externos antes de aplicar placares; clientes nao devem depender do formato bruto do provider.
+- O contador diario de uso no Firestore representa chamadas da API-Football, nao chamadas de outros providers.
 - Campos atualizados pelo sync:
   - `status`
   - `homeGoals`

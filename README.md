@@ -69,10 +69,16 @@ Para desenvolvimento local, `GOOGLE_APPLICATION_CREDENTIALS=/caminho/service-acc
 
 ### Live Score
 
+- `LIVE_SCORE_PROVIDER=api-football|football-data`: padrão `api-football`.
 - `FOOTBALL_DATA_API_TOKEN`
 - `FOOTBALL_DATA_BASE_URL=https://api.football-data.org/v4`
 - `LIVE_SCORE_COMPETITION_CODE=WC`
 - `LIVE_SCORE_SEASON=2026`
+
+Para trocar a API de live score, altere `LIVE_SCORE_PROVIDER`. A aplicação usa um
+contrato interno comum de fixtures normalizados, então rotas, scoring e cron não precisam
+conhecer detalhes do provedor. O contador diário em Firestore registra apenas chamadas da
+API-Football.
 
 ### Sincronizacao automatica
 
@@ -86,10 +92,11 @@ API-Football:
 - `API_FOOTBALL_PLAN=free|paid`: padrão `free`.
 
 No plano Free, a API-Football bloqueia chamadas por temporada para a Copa 2026, como
-`/fixtures?league=1&season=2026` e `/standings?league=1&season=2026`. Nesse modo, rode
-`POST /api/sync/seed` uma vez para popular o calendário local e deixe o cron em `POST /api/sync`;
-ele não gastará chamadas tentando endpoints bloqueados e só tentará live score quando houver jogo
-próximo/ativo no cache local.
+`/fixtures?league=1&season=2026` e `/standings?league=1&season=2026`, mas permite buscar
+fixtures por data, como `/fixtures?date=2026-06-09`. Nesse modo, rode `POST /api/sync/seed`
+uma vez para popular o calendário completo/local e deixe o cron em `POST /api/sync`; ele não
+gastará chamadas tentando endpoints por temporada bloqueados e continuará atualizando os jogos
+do dia por data.
 
 Com plano pago, configure `API_FOOTBALL_PLAN=paid` para liberar o sync completo de fixtures,
 standings, daily e live.
