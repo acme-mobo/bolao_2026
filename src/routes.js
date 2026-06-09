@@ -178,7 +178,18 @@ export function createRouter(store, options = {}) {
       let matches = db.matches;
       if (dateParam) {
         const day = dateParam.slice(0, 10);
-        matches = matches.filter((m) => m.startsAt && m.startsAt.slice(0, 10) === day);
+        matches = matches.filter((m) => {
+          if (!m.startsAt) return false;
+          // match when stored UTC date equals requested day
+          if (m.startsAt.slice(0, 10) === day) return true;
+          // also match when the local (server) date for startsAt equals requested day
+          const local = new Date(m.startsAt);
+          const y = local.getFullYear();
+          const mo = String(local.getMonth() + 1).padStart(2, '0');
+          const d = String(local.getDate()).padStart(2, '0');
+          const localYmd = `${y}-${mo}-${d}`;
+          return localYmd === day;
+        });
       }
       const summary = matches
         .sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0))
