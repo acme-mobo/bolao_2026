@@ -153,6 +153,50 @@ async function writeSyncStatus(patch) {
   );
 }
 
+async function writeSyncLog(entry) {
+  await wcRoot().collection('syncLogs').add(entry);
+}
+
+function summarizeSyncOp(op) {
+  return {
+    op:       op.op,
+    ok:       op.ok ?? false,
+    skipped:  op.skipped ?? false,
+    count:    op.count ?? null,
+    changes:  op.changes ?? null,
+    provider: op.provider ?? null,
+    reason:   op.reason ?? null,
+    error:    op.error ?? null,
+  };
+}
+
+export function buildSyncLogEntry({
+  startedAt,
+  finishedAt,
+  mode,
+  plan,
+  usedBefore,
+  usedAfter,
+  apiCallsMade,
+  ops = [],
+  status,
+  trigger = 'sync',
+}) {
+  return {
+    startedAt,
+    finishedAt,
+    durationMs: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+    mode,
+    plan,
+    usedBefore,
+    usedAfter,
+    apiCallsMade,
+    ops: ops.map(summarizeSyncOp),
+    status,
+    trigger,
+  };
+}
+
 // ─── Bridge para o bolão (scoring de palpites) ────────
 // Atualiza db.matches com placares da API-Football para que o scoring funcione
 async function bridgeToBolaoDB(fixtures, providerName = 'api-football') {
@@ -259,6 +303,7 @@ async function doSyncStandings(client) {
 
 // ─── Orquestrador principal ───────────────────────────
 export async function orchestrate() {
+  const startedAt = new Date().toISOString();
   const client = new ApiFootballClient();
   const liveProvider = createLiveScoreProvider();
 
@@ -267,9 +312,24 @@ export async function orchestrate() {
   const todayUtc = new Date().toISOString().slice(0, 10);
   const usage    = await getUsage(todayUtc);
   const mode     = getMode(usage.used);
+  const writeRunLog = async ({ status, ops = [], usedAfter = usage.used, apiCallsMade = 0, mode: logMode = mode }) => {
+    await writeSyncLog(buildSyncLogEntry({
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      mode: logMode,
+      plan: capabilities.plan,
+      usedBefore: usage.used,
+      usedAfter,
+      apiCallsMade,
+      ops,
+      status,
+      trigger: 'sync',
+    }));
+  };
 
   if (mode === 'cache-only') {
     await writeSyncStatus({ mode, message: 'Cache-only: limite diário atingido' });
+    await writeRunLog({ status: 'skipped' });
     return { mode, skipped: true, reason: 'cache-only', used: usage.used };
   }
 
@@ -340,6 +400,7 @@ export async function orchestrate() {
   }
 
   if (!pending.length) {
+    await writeRunLog({ status: 'skipped', ops: skipped });
     return {
       mode,
       plan: capabilities.plan,
@@ -382,7 +443,17 @@ export async function orchestrate() {
     message:    `Atualizado às ${hhmm}`,
   });
 
-  return { mode: updatedMode, plan: capabilities.plan, ops: [...skipped, ...results], apiCallsMade, used: updatedUsed };
+  const ops = [...skipped, ...results];
+  const logStatus = results.some((result) => result.error) ? 'error' : 'ok';
+  await writeRunLog({
+    status: logStatus,
+    ops,
+    usedAfter: updatedUsed,
+    apiCallsMade,
+    mode: updatedMode,
+  });
+
+  return { mode: updatedMode, plan: capabilities.plan, ops, apiCallsMade, used: updatedUsed };
 }
 
 // ─── Seed local (dados de world-cup-2026-data.js) ────
