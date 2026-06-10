@@ -57,6 +57,7 @@ function isMatchLocked(match) {
 }
 
 function getUrgency(match, nowMs = Date.now()) {
+  if (match.status === 'live') return 'live';
   if (match.status === 'finished' || match.status === 'cancelled') return 'done';
   const lock = new Date(match.lockAt || match.startsAt).getTime();
   const diff = lock - nowMs;
@@ -86,6 +87,15 @@ function formatMatchDate(value) {
 function formatDayLabel(value) {
   return new Intl.DateTimeFormat('pt-BR', {
     weekday: 'long', day: '2-digit', month: 'long',
+  }).format(new Date(value));
+}
+
+function formatLocalDateKey(value) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).format(new Date(value));
 }
 
@@ -361,7 +371,9 @@ export default function HomePage() {
 
   // UI state
   const [theme, setTheme]         = useState('dark');
-  const [navMode, setNavMode]     = useState('pending'); // group | date | pending | results
+  const [sectionMode, setSectionMode] = useState('predictions'); // predictions | today | results
+  const [navMode, setNavMode]     = useState('pending'); // group | date | pending
+  const [resultsMode, setResultsMode] = useState('date'); // group | date
   const [matchFilter, setMatchFilter] = useState('all'); // all | pending
   const [editingName, setEditingName]   = useState(false);
   const [nameInput, setNameInput]       = useState('');
@@ -592,23 +604,54 @@ export default function HomePage() {
   const upcomingByDate = useMemo(() => {
     const upcoming = [...matches]
       .filter((m) => m.status !== 'finished' && m.status !== 'cancelled')
-      .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+      .sort((a, b) => {
+        const urgencyOrder = { live: 0, urgent: 1, warning: 2, normal: 3, locked: 4, done: 5 };
+        return (urgencyOrder[getUrgency(a, now)] ?? 9) - (urgencyOrder[getUrgency(b, now)] ?? 9)
+          || new Date(a.startsAt) - new Date(b.startsAt);
+      });
 
-    const groups = [];
+    const grouped = [];
     const seen = {};
     for (const m of upcoming) {
       const key = formatDayLabel(m.startsAt);
-      if (!seen[key]) { seen[key] = true; groups.push({ date: key, matches: [] }); }
-      groups[groups.length - 1].matches.push(m);
+      if (!seen[key]) { seen[key] = true; grouped.push({ date: key, matches: [] }); }
+      grouped[grouped.length - 1].matches.push(m);
     }
-    return groups;
-  }, [matches]);
+    return grouped;
+  }, [matches, now]);
+
+  const todayMatches = useMemo(() => {
+    const today = formatLocalDateKey(now);
+
+    return [...matches]
+      .filter((m) => formatLocalDateKey(m.startsAt) === today)
+      .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+  }, [matches, now]);
+
+  const prioritizedTodayMatches = useMemo(() => {
+    const urgencyOrder = { live: 0, urgent: 1, warning: 2, normal: 3, locked: 4, done: 5 };
+    return [...todayMatches].sort((a, b) => {
+      return (urgencyOrder[getUrgency(a, now)] ?? 9) - (urgencyOrder[getUrgency(b, now)] ?? 9)
+        || new Date(a.startsAt) - new Date(b.startsAt);
+    });
+  }, [todayMatches, now]);
 
   const resultsMatches = useMemo(() => {
     return [...matches]
       .filter((m) => m.status === 'finished')
       .sort((a, b) => new Date(b.startsAt) - new Date(a.startsAt));
   }, [matches]);
+
+  const resultsByDate = useMemo(() => {
+    const grouped = [];
+    const seen = {};
+    for (const m of resultsMatches) {
+      const key = formatDayLabel(m.startsAt);
+      if (!seen[key]) { seen[key] = true; grouped.push({ date: key, matches: [] }); }
+      grouped[grouped.length - 1].matches.push(m);
+    }
+    return grouped;
+  }, [resultsMatches]);
 
   // Shared match card props
   const matchCardShared = {
@@ -780,10 +823,15 @@ export default function HomePage() {
           {/* ── Metric: Pendentes (clickable) ────────── */}
           <section
             className={`metricPanel clickable`}
-            onClick={() => setNavMode('pending')}
+            onClick={() => { setSectionMode('predictions'); setNavMode('pending'); }}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && setNavMode('pending')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setSectionMode('predictions');
+                setNavMode('pending');
+              }
+            }}
             title="Ver palpites pendentes"
           >
             <div className="metricHeader">
@@ -806,38 +854,60 @@ export default function HomePage() {
           <section className="panel mainPanel">
             <div className="panelTitle">
               <div className="titleIcon"><CalendarDays size={13} /></div>
-              <h2>Palpites</h2>
+              <h2>{sectionMode === 'today' ? 'Jogos de hoje' : sectionMode === 'results' ? 'Resultados' : 'Palpites'}</h2>
             </div>
 
-            {/* Nav mode tabs */}
+            {/* Section tabs */}
             <div className="navTabs" role="tablist">
-              <button role="tab" aria-selected={navMode === 'group'}
-                className={navMode === 'group' ? 'active' : ''}
-                onClick={() => setNavMode('group')}>
-                Por Grupo
-              </button>
-              <button role="tab" aria-selected={navMode === 'date'}
-                className={navMode === 'date' ? 'active' : ''}
-                onClick={() => setNavMode('date')}>
-                Por Data
-              </button>
-              <button role="tab" aria-selected={navMode === 'pending'}
-                className={navMode === 'pending' ? 'active' : ''}
-                onClick={() => setNavMode('pending')}>
-                Pendentes
+              <button role="tab" aria-selected={sectionMode === 'predictions'}
+                className={sectionMode === 'predictions' ? 'active' : ''}
+                onClick={() => setSectionMode('predictions')}>
+                Palpites
                 {pendingMatches.length > 0 && (
                   <span className="countBadge">{pendingMatches.length}</span>
                 )}
               </button>
-              <button role="tab" aria-selected={navMode === 'results'}
-                className={navMode === 'results' ? 'active' : ''}
-                onClick={() => setNavMode('results')}>
+              <button role="tab" aria-selected={sectionMode === 'today'}
+                className={sectionMode === 'today' ? 'active' : ''}
+                onClick={() => setSectionMode('today')}>
+                Hoje
+                {prioritizedTodayMatches.length > 0 && (
+                  <span className="countBadge neutral">{prioritizedTodayMatches.length}</span>
+                )}
+              </button>
+              <button role="tab" aria-selected={sectionMode === 'results'}
+                className={sectionMode === 'results' ? 'active' : ''}
+                onClick={() => setSectionMode('results')}>
                 Resultados
               </button>
             </div>
 
+            {/* Prediction mode tabs */}
+            {sectionMode === 'predictions' && (
+              <div className="subFilterBar sectionSubTabs" role="tablist">
+                <button role="tab" aria-selected={navMode === 'group'}
+                  className={navMode === 'group' ? 'active' : ''}
+                  onClick={() => setNavMode('group')}>
+                Por Grupo
+                </button>
+                <button role="tab" aria-selected={navMode === 'date'}
+                  className={navMode === 'date' ? 'active' : ''}
+                  onClick={() => setNavMode('date')}>
+                Por Data
+                </button>
+                <button role="tab" aria-selected={navMode === 'pending'}
+                  className={navMode === 'pending' ? 'active' : ''}
+                  onClick={() => setNavMode('pending')}>
+                Pendentes
+                  {pendingMatches.length > 0 && (
+                    <span className="countBadge">{pendingMatches.length}</span>
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* Sub-filter: Todos / Pendentes (only for group and date views) */}
-            {(navMode === 'group' || navMode === 'date') && (
+            {sectionMode === 'predictions' && (navMode === 'group' || navMode === 'date') && (
               <div className="subFilterBar">
                 <button
                   className={matchFilter === 'all' ? 'active' : ''}
@@ -856,7 +926,7 @@ export default function HomePage() {
             )}
 
             {/* ── Por Grupo ─────────────────────────── */}
-            {navMode === 'group' && (
+            {sectionMode === 'predictions' && navMode === 'group' && (
               <div className="matchList">
                 {groups.length === 0
                   ? <div className="emptyState">Nenhum jogo disponível.</div>
@@ -882,7 +952,7 @@ export default function HomePage() {
             )}
 
             {/* ── Por Data ──────────────────────────── */}
-            {navMode === 'date' && (
+            {sectionMode === 'predictions' && navMode === 'date' && (
               <div className="matchList">
                 {upcomingByDate.length === 0
                   ? <div className="emptyState">Sem jogos agendados.</div>
@@ -907,7 +977,7 @@ export default function HomePage() {
             )}
 
             {/* ── Pendentes ─────────────────────────── */}
-            {navMode === 'pending' && (
+            {sectionMode === 'predictions' && navMode === 'pending' && (
               <div className="matchList">
                 {pendingMatches.length === 0 ? (
                   <div className="allDoneState">
@@ -926,18 +996,72 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* ── Resultados ────────────────────────── */}
-            {navMode === 'results' && (
+            {/* ── Hoje ──────────────────────────────── */}
+            {sectionMode === 'today' && (
               <div className="matchList">
-                {resultsMatches.length === 0
-                  ? <div className="emptyState">Nenhum jogo encerrado ainda.</div>
-                  : resultsMatches.map((m) => (
+                {prioritizedTodayMatches.length === 0
+                  ? <div className="emptyState">Nenhum jogo hoje.</div>
+                  : prioritizedTodayMatches.map((m) => (
                       <MatchCard key={m.id} match={m}
-                        urgency="done"
+                        urgency={getUrgency(m, now)}
                         showGroup
                         {...matchCardShared} />
                     ))}
               </div>
+            )}
+
+            {/* ── Resultados ────────────────────────── */}
+            {sectionMode === 'results' && (
+              <>
+                <div className="subFilterBar sectionSubTabs" role="tablist">
+                  <button role="tab" aria-selected={resultsMode === 'group'}
+                    className={resultsMode === 'group' ? 'active' : ''}
+                    onClick={() => setResultsMode('group')}>
+                    Por Grupo
+                  </button>
+                  <button role="tab" aria-selected={resultsMode === 'date'}
+                    className={resultsMode === 'date' ? 'active' : ''}
+                    onClick={() => setResultsMode('date')}>
+                    Por Data
+                  </button>
+                </div>
+
+                <div className="matchList">
+                  {resultsMatches.length === 0 ? (
+                    <div className="emptyState">Nenhum jogo encerrado ainda.</div>
+                  ) : resultsMode === 'group' ? (
+                    groups.map(({ group }) => {
+                      const gMatches = resultsMatches
+                        .filter((m) => m.group === group)
+                        .sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0));
+                      if (gMatches.length === 0) return null;
+                      return (
+                        <div key={group}>
+                          <div className="dateSep">Grupo {group}</div>
+                          {gMatches.map((m) => (
+                            <MatchCard key={m.id} match={m}
+                              urgency="done"
+                              showGroup={false}
+                              {...matchCardShared} />
+                          ))}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    resultsByDate.map(({ date, matches: dm }) => (
+                      <div key={date}>
+                        <div className="dateSep">{date}</div>
+                        {dm.map((m) => (
+                          <MatchCard key={m.id} match={m}
+                            urgency="done"
+                            showGroup
+                            {...matchCardShared} />
+                        ))}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
             )}
           </section>
 

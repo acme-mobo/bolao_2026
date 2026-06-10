@@ -692,6 +692,10 @@ button { cursor: pointer; border: 0; }
   line-height: 1;
 }
 
+.countBadge.neutral {
+  background: var(--muted-dim);
+}
+
 .navTabs button.active .countBadge {
   background: rgba(0,0,0,0.25);
 }
@@ -733,6 +737,10 @@ button { cursor: pointer; border: 0; }
 
 .subFilterBar button.active .countBadge {
   background: rgba(0,0,0,0.25);
+}
+
+.sectionSubTabs {
+  margin-top: -4px;
 }
 
 /* ═══════════════════════════════════════════════════
