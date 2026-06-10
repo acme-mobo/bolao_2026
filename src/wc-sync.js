@@ -20,6 +20,8 @@ import { worldCup2026GroupMatches, worldCup2026Teams } from './world-cup-2026-da
 // ─── Constantes ───────────────────────────────────────
 const DAILY_LIMIT   = 100;
 const LOCK_TTL_MS   = 5 * 60 * 1000; // lock expira em 5 min
+const LIVE_WINDOW_BEFORE_MS = 60 * 60_000;
+const LIVE_WINDOW_AFTER_MS  = 3 * 60 * 60_000;
 
 // Limiares de uso que mudam o modo de operação
 const THRESHOLDS = { economy: 70, critical: 85, cacheOnly: 95 };
@@ -59,10 +61,17 @@ const systemCol  = () => fs().collection('system');
 
 // ─── Controle de uso diário ───────────────────────────
 export function getMode(used) {
-  if (used >= THRESHOLDS.cacheOnly) return 'cache-only';
+  const budget = getApiFootballDailyBudget();
+  if (used >= budget || used >= THRESHOLDS.cacheOnly) return 'cache-only';
   if (used >= THRESHOLDS.critical)  return 'critical';
   if (used >= THRESHOLDS.economy)   return 'economy';
   return 'normal';
+}
+
+export function getApiFootballDailyBudget(options = {}) {
+  const budget = Number(options.budget ?? config.apiFootballSyncDailyBudget);
+  if (!Number.isFinite(budget) || budget <= 0) return DAILY_LIMIT;
+  return Math.min(Math.floor(budget), DAILY_LIMIT);
 }
 
 async function getUsage(date) {
@@ -111,6 +120,38 @@ function intervalFor(op, mode) {
 
 export function shouldTrackApiFootballQuota(quotaSource) {
   return quotaSource.quotaBucket === undefined || quotaSource.quotaBucket === 'api-football';
+}
+
+export function hasApiFootballBudget(used, estimatedCalls = 1, options = {}) {
+  return used + estimatedCalls <= getApiFootballDailyBudget(options);
+}
+
+function normalizeLocalFixture([fixtureId, group, homeCode, awayCode, date, venue, city]) {
+  return { fixtureId, group, homeCode, awayCode, date, venue, city };
+}
+
+export function getLocalFixturesForDate(date, fixtures = worldCup2026GroupMatches.map(normalizeLocalFixture)) {
+  return fixtures.filter((fixture) => fixture.date?.slice(0, 10) === date);
+}
+
+export function hasKnownTodayMatches(fixtures = []) {
+  return fixtures.length > 0;
+}
+
+export function isInsideLiveWindow(fixtures = [], now = new Date()) {
+  const nowMs = now.getTime();
+  return fixtures.some((fixture) => {
+    const startMs = new Date(fixture.date).getTime();
+    if (!Number.isFinite(startMs)) return false;
+    return nowMs >= startMs - LIVE_WINDOW_BEFORE_MS && nowMs <= startMs + LIVE_WINDOW_AFTER_MS;
+  });
+}
+
+async function readKnownFixturesForDate(date) {
+  const dailySnap = await wcRoot().collection('daily').doc(date).get();
+  const dailyFixtures = dailySnap.exists ? dailySnap.data()?.fixtures ?? [] : [];
+  if (dailyFixtures.length) return dailyFixtures;
+  return getLocalFixturesForDate(date);
 }
 
 // ─── Escritas no Firestore ────────────────────────────
@@ -244,7 +285,9 @@ export function buildSyncResponse({
       usedBefore,
       usedAfter,
       limit: DAILY_LIMIT,
+      budget: getApiFootballDailyBudget(),
       remaining: Math.max(DAILY_LIMIT - usedAfter, 0),
+      remainingBudget: Math.max(getApiFootballDailyBudget() - usedAfter, 0),
       apiCallsMade,
     },
     summary: summarizeSyncResponseOps(ops),
@@ -361,6 +404,26 @@ async function doSyncStandings(client) {
 // ─── Orquestrador principal ───────────────────────────
 export async function orchestrate() {
   const startedAt = new Date().toISOString();
+  const globalLocked = await acquireLock('sync');
+  if (!globalLocked) {
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const usage = await getUsage(todayUtc);
+    const mode = getMode(usage.used);
+    const finishedAt = new Date().toISOString();
+    const capabilities = getApiFootballCapabilities();
+    return buildSyncResponse({
+      startedAt,
+      finishedAt,
+      status: 'skipped',
+      reason: 'lock ativo',
+      mode,
+      plan: capabilities.plan,
+      usedBefore: usage.used,
+      usedAfter: usage.used,
+    });
+  }
+
+  try {
   const client = new ApiFootballClient();
   const liveProvider = createLiveScoreProvider();
 
@@ -385,7 +448,7 @@ export async function orchestrate() {
   };
 
   if (mode === 'cache-only') {
-    await writeSyncStatus({ mode, message: 'Cache-only: limite diário atingido' });
+    await writeSyncStatus({ mode, message: 'Cache-only: orçamento diário atingido' });
     const finishedAt = new Date().toISOString();
     await writeRunLog({ status: 'skipped', finishedAt });
     return buildSyncResponse({
@@ -404,18 +467,22 @@ export async function orchestrate() {
   const statusSnap = await wcRoot().collection('meta').doc('syncStatus').get();
   const status     = statusSnap.exists ? statusSnap.data() : {};
 
-  // Verifica se há jogos ativos ou iminentes (para decidir sobre live)
+  // Verifica se há jogos ativos ou em janela próxima (para decidir sobre live)
   const liveSnap  = await wcRoot().collection('live').doc('current').get();
   const liveData  = liveSnap.exists ? liveSnap.data() : { fixtures: [] };
   const hasLiveNow = (liveData.fixtures ?? []).some((f) => f.status === 'live');
+  const knownTodayFixtures = await readKnownFixturesForDate(todayUtc);
+  const hasMatchesToday = hasKnownTodayMatches(knownTodayFixtures);
+  const insideLiveWindow = isInsideLiveWindow(knownTodayFixtures);
+  let estimatedApiFootballCalls = 0;
 
-  const dailySnap  = await wcRoot().collection('daily').doc(todayUtc).get();
-  const dailyData  = dailySnap.exists ? dailySnap.data() : { fixtures: [] };
-  const nowMs = Date.now();
-  const hasTodayMatches = (dailyData.fixtures ?? []).some((f) => {
-    const startMs = new Date(f.date).getTime();
-    return startMs > nowMs - 3 * 3600_000 && startMs < nowMs + 3 * 3600_000;
-  });
+  const canSpendApiFootballCall = (estimatedCalls = 1) => {
+    return hasApiFootballBudget(usage.used, estimatedApiFootballCalls + estimatedCalls);
+  };
+
+  const reserveApiFootballCall = (estimatedCalls = 1) => {
+    estimatedApiFootballCalls += estimatedCalls;
+  };
 
   // ── Decide o que sincronizar ───────────────────────
   const pending = [];
@@ -426,7 +493,12 @@ export async function orchestrate() {
     if (!client.configured) {
       skipped.push({ op: 'allFixtures', skipped: true, reason: 'API_FOOTBALL_KEY não configurado' });
     } else if (capabilities.canSyncSeasonFixtures) {
-      pending.push({ name: 'allFixtures', fn: () => doSyncAllFixtures(client) });
+      if (canSpendApiFootballCall()) {
+        pending.push({ name: 'allFixtures', fn: () => doSyncAllFixtures(client) });
+        reserveApiFootballCall();
+      } else {
+        skipped.push({ op: 'allFixtures', skipped: true, reason: 'orçamento diário API-Football atingido' });
+      }
     } else {
       skipped.push({ op: 'allFixtures', skipped: true, reason: capabilities.seasonUnsupportedReason });
     }
@@ -437,7 +509,12 @@ export async function orchestrate() {
     if (!client.configured) {
       skipped.push({ op: 'standings', skipped: true, reason: 'API_FOOTBALL_KEY não configurado' });
     } else if (capabilities.canSyncStandings) {
-      pending.push({ name: 'standings', fn: () => doSyncStandings(client) });
+      if (canSpendApiFootballCall()) {
+        pending.push({ name: 'standings', fn: () => doSyncStandings(client) });
+        reserveApiFootballCall();
+      } else {
+        skipped.push({ op: 'standings', skipped: true, reason: 'orçamento diário API-Football atingido' });
+      }
     } else {
       skipped.push({ op: 'standings', skipped: true, reason: capabilities.seasonUnsupportedReason });
     }
@@ -445,10 +522,17 @@ export async function orchestrate() {
 
   const dailyInterval = intervalFor('daily', mode);
   if (dailyInterval !== null && minutesSince(status.lastDailyFixtures) > dailyInterval) {
-    if (!client.configured) {
+    if (!hasMatchesToday) {
+      skipped.push({ op: 'daily', skipped: true, reason: 'sem jogos conhecidos hoje' });
+    } else if (!client.configured) {
       skipped.push({ op: 'daily', skipped: true, reason: 'API_FOOTBALL_KEY não configurado' });
     } else if (capabilities.canSyncDailyFixtures) {
-      pending.push({ name: 'daily', fn: () => doSyncDaily(client, todayUtc) });
+      if (canSpendApiFootballCall()) {
+        pending.push({ name: 'daily', fn: () => doSyncDaily(client, todayUtc) });
+        reserveApiFootballCall();
+      } else {
+        skipped.push({ op: 'daily', skipped: true, reason: 'orçamento diário API-Football atingido' });
+      }
     } else {
       skipped.push({ op: 'daily', skipped: true, reason: capabilities.seasonUnsupportedReason });
     }
@@ -457,13 +541,26 @@ export async function orchestrate() {
   const liveInterval = intervalFor('live', mode);
   const shouldSyncLive = liveInterval !== null
     && minutesSince(status.lastLive) > liveInterval
-    && (hasLiveNow || hasTodayMatches);
+    && hasMatchesToday
+    && (hasLiveNow || insideLiveWindow);
   if (shouldSyncLive) {
     if (liveProvider.configured) {
-      pending.push({ name: 'live', fn: () => doSyncLive(liveProvider), quotaSource: liveProvider });
+      const tracksApiFootball = shouldTrackApiFootballQuota(liveProvider);
+      if (!tracksApiFootball || canSpendApiFootballCall()) {
+        pending.push({ name: 'live', fn: () => doSyncLive(liveProvider), quotaSource: liveProvider });
+        if (tracksApiFootball) reserveApiFootballCall();
+      } else {
+        skipped.push({ op: 'live', skipped: true, reason: 'orçamento diário API-Football atingido' });
+      }
     } else {
       skipped.push({ op: 'live', skipped: true, reason: `${liveProvider.getStatus().provider} não configurado` });
     }
+  } else if (liveInterval !== null && minutesSince(status.lastLive) > liveInterval) {
+    skipped.push({
+      op: 'live',
+      skipped: true,
+      reason: hasMatchesToday ? 'fora da janela de live' : 'sem jogos conhecidos hoje',
+    });
   }
 
   if (!pending.length) {
@@ -544,6 +641,9 @@ export async function orchestrate() {
     usedBefore: usage.used,
     usedAfter: updatedUsed,
   });
+  } finally {
+    await releaseLock('sync');
+  }
 }
 
 // ─── Seed local (dados de world-cup-2026-data.js) ────

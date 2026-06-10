@@ -1,9 +1,7 @@
 name: Sync placares
-# Touched to re-register schedule (2026-06-08)
+# Agendamento automatico desabilitado: o cron ativo roda em plataforma externa.
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 concurrency:

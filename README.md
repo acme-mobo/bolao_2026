@@ -82,7 +82,16 @@ API-Football.
 
 ### Sincronizacao automatica
 
-O projeto usa GitHub Actions para chamar `POST /api/sync` a cada 10 minutos no repositório público.
+O sync automatico ativo roda em uma plataforma externa e chama `POST /api/sync` a cada
+30 minutos. O workflow GitHub Actions deste repositorio fica apenas com
+`workflow_dispatch` para acionamento manual, sem agendamento por `schedule`.
+
+O backend aplica uma politica conservadora para proteger a quota da API-Football:
+
+- usa o calendario local/seed para decidir se existe jogo conhecido no dia;
+- pula `daily` e `live` sem chamada remota quando nao ha jogo conhecido hoje;
+- so consulta live score dentro da janela de 1h antes ate 3h depois do inicio do jogo;
+- entra em `cache-only` ao atingir `API_FOOTBALL_SYNC_DAILY_BUDGET`, antes do limite real.
 
 API-Football:
 
@@ -90,6 +99,7 @@ API-Football:
 - `API_FOOTBALL_LEAGUE_ID=1`: FIFA World Cup.
 - `API_FOOTBALL_SEASON=2026`.
 - `API_FOOTBALL_PLAN=free|paid`: padrão `free`.
+- `API_FOOTBALL_SYNC_DAILY_BUDGET=60`: budget conservador diario usado pelo sync.
 
 No plano Free, a API-Football bloqueia chamadas por temporada para a Copa 2026, como
 `/fixtures?league=1&season=2026` e `/standings?league=1&season=2026`, mas permite buscar
@@ -107,6 +117,10 @@ Secrets necessários no repositório GitHub:
 - `API_FOOTBALL_SYNC_SECRET`: mesmo valor usado no backend para autorizar o sync
 
 O workflow também pode ser disparado manualmente com `workflow_dispatch`.
+
+`POST /live-score/sync` continua sendo uma rota administrativa manual. Se
+`LIVE_SCORE_PROVIDER=api-football`, ela tambem consome quota da API-Football e nao deve ser
+usada como cron paralelo.
 
 ### Outros
 
