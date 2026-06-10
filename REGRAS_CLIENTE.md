@@ -206,7 +206,7 @@ Regras (em ordem de prioridade):
 
 | Pontos | Condicao |
 | ---: | --- |
-| 25 | Placar exato — acertou os dois placares (vale para vitorias e empates) |
+| 25 | Placar exato — acertou o placare (vale para vitorias e empates) |
 | 18 | Vencedor correto + saldo de gols correto (diferenca igual, sem acertar o placar exato) |
 | 15 | Vencedor correto + gols exatos de uma das equipes |
 | 10 | Vencedor correto apenas — ou empate acertado com placar errado |

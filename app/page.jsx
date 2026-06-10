@@ -109,9 +109,9 @@ function avatarColor(id = '') {
 
 function ScoringRulesModal({ onClose }) {
   const rules = [
-    { pts: 25, label: 'Placar exato',              desc: 'Acertou os dois placares — vale para vitórias e empates', highlight: true },
-    { pts: 18, label: 'Vencedor + saldo de gols',  desc: 'Acertou o vencedor e a diferença de gols (ex: apostou 3×1, saiu 2×0)' },
-    { pts: 15, label: 'Vencedor + gols de um time', desc: 'Acertou o vencedor e os gols de uma das equipes (ex: apostou 2×0, saiu 2×1)' },
+    { pts: 25, label: 'Placar exato',              desc: 'Acertou o placar — vale para vitórias e empates', highlight: true },
+    { pts: 18, label: 'Vencedor + saldo de gols',  desc: 'Acertou o vencedor e a diferença de gols \n(ex: apostou 3×1, saiu 2×0)' },
+    { pts: 15, label: 'Vencedor + gols de um time', desc: 'Acertou o vencedor e os gols de uma das equipes \n(ex: apostou 2×0, saiu 2×1)' },
     { pts: 10, label: 'Só o vencedor / empate',    desc: 'Acertou apenas o resultado — quem vence ou que termina empatado' },
   ];
   return (
