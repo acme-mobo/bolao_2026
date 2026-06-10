@@ -222,6 +222,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
   };
   const locked = urgency === 'locked' || urgency === 'done';
   const isFinished = match.status === 'finished';
+  const hasScore = match.homeGoals != null && match.awayGoals != null;
   const isSaved = savedMatches.has(match.id);
   const countdown = (urgency === 'urgent' || urgency === 'warning')
     ? formatCountdown(match, now) : null;
@@ -259,7 +260,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
         </div>
 
         <div className="scoreCenter">
-          {isFinished && match.homeGoals != null ? (
+          {(isFinished || match.status === 'live') && hasScore ? (
             <div className="resultScore">
               <span className="resultNum">{match.homeGoals}</span>
               <span className="resultSep">×</span>
@@ -637,9 +638,13 @@ export default function HomePage() {
   }, [todayMatches, now]);
 
   const resultsMatches = useMemo(() => {
+    const statusOrder = { live: 0, finished: 1 };
     return [...matches]
-      .filter((m) => m.status === 'finished')
-      .sort((a, b) => new Date(b.startsAt) - new Date(a.startsAt));
+      .filter((m) => m.status === 'live' || m.status === 'finished')
+      .sort((a, b) => {
+        return (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
+          || new Date(b.startsAt) - new Date(a.startsAt);
+      });
   }, [matches]);
 
   const resultsByDate = useMemo(() => {
@@ -1028,7 +1033,7 @@ export default function HomePage() {
 
                 <div className="matchList">
                   {resultsMatches.length === 0 ? (
-                    <div className="emptyState">Nenhum jogo encerrado ainda.</div>
+                    <div className="emptyState">Nenhum jogo em andamento ou encerrado ainda.</div>
                   ) : resultsMode === 'group' ? (
                     groups.map(({ group }) => {
                       const gMatches = resultsMatches
@@ -1040,7 +1045,7 @@ export default function HomePage() {
                           <div className="dateSep">Grupo {group}</div>
                           {gMatches.map((m) => (
                             <MatchCard key={m.id} match={m}
-                              urgency="done"
+                              urgency={getUrgency(m, now)}
                               showGroup={false}
                               {...matchCardShared} />
                           ))}
@@ -1053,7 +1058,7 @@ export default function HomePage() {
                         <div className="dateSep">{date}</div>
                         {dm.map((m) => (
                           <MatchCard key={m.id} match={m}
-                            urgency="done"
+                            urgency={getUrgency(m, now)}
                             showGroup
                             {...matchCardShared} />
                         ))}
