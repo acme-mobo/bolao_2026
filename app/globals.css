@@ -837,6 +837,20 @@ button { cursor: pointer; border: 0; }
 
 .matchCard.locked  { opacity: 0.68; }
 
+.matchCard.gameCard {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.04), transparent 38%),
+    var(--bg2);
+  border-color: var(--line-strong);
+}
+
+.matchCard.gameCard.locked { opacity: 1; }
+
+.matchCard.gameCard.liveGame {
+  border-color: rgba(34,197,94,0.42);
+  box-shadow: 0 0 0 1px rgba(34,197,94,0.08), 0 10px 28px rgba(0,0,0,0.18);
+}
+
 .matchCard.urgent {
   border-color: rgba(244,63,94,0.45);
   border-left: 3px solid var(--danger);
@@ -927,6 +941,11 @@ button { cursor: pointer; border: 0; }
   gap: 10px;
 }
 
+.gameCard .matchCardBody {
+  padding: 14px 14px 13px;
+  gap: 12px;
+}
+
 .teamBlock { display: grid; gap: 2px; }
 .teamBlock.away { text-align: right; }
 
@@ -935,11 +954,15 @@ button { cursor: pointer; border: 0; }
   line-height: 1.1;
 }
 
+.gameCard .teamFlag { font-size: 32px; }
+
 .teamCode {
   font-size: 17px;
   font-weight: 900;
   letter-spacing: -0.3px;
 }
+
+.gameCard .teamCode { font-size: 20px; }
 
 .teamFullName {
   font-size: 11px;
@@ -1037,15 +1060,55 @@ button { cursor: pointer; border: 0; }
   gap: 7px;
 }
 
+.gameScore {
+  min-width: 92px;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+.liveGame .gameScore {
+  background: var(--live-dim);
+  border-color: rgba(34,197,94,0.32);
+}
+
 .resultNum {
   font-size: 22px;
   font-weight: 900;
+}
+
+.gameScore .resultNum {
+  min-width: 24px;
+  font-size: 30px;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .resultSep {
   font-size: 13px;
   font-weight: 800;
   color: var(--muted);
+}
+
+.gameScore .resultSep {
+  font-size: 16px;
+  color: var(--text);
+  opacity: 0.6;
+}
+
+.vsLabel {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--muted);
+  letter-spacing: 0.8px;
+}
+
+.gameScore.noScore {
+  background: var(--glass-bg);
 }
 
 /* ─── Card footer ────────────────────────────────── */
@@ -1062,6 +1125,13 @@ button { cursor: pointer; border: 0; }
 
 .savedInfo  { font-weight: 600; color: var(--brand); font-size: 11px; }
 .noTip      { color: var(--muted-dim); }
+
+.secondaryTip {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.82;
+}
 
 /* ─── Status badges ──────────────────────────────── */
 .statusBadge {
