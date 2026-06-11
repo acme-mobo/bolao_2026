@@ -201,10 +201,12 @@ export function applyLiveFixturesToDb(db, remoteMatches, providerStatus) {
   const teamsById = new Map(db.teams.map((team) => [team.id, team]));
   const now = new Date().toISOString();
   const changes = [];
+  const matchedRemoteIds = new Set();
 
   for (const localMatch of db.matches) {
     const remoteMatch = remoteMatches.find((candidate) => sameFixture(localMatch, candidate, teamsById));
     if (!remoteMatch) continue;
+    matchedRemoteIds.add(externalIdFor(remoteMatch));
 
     const before = {
       status: localMatch.status,
@@ -247,6 +249,11 @@ export function applyLiveFixturesToDb(db, remoteMatches, providerStatus) {
   return {
     provider: providerStatus,
     fetched: remoteMatches.length,
+    matched: matchedRemoteIds.size,
+    unmatchedExternalIds: remoteMatches
+      .map(externalIdFor)
+      .filter((externalId) => !matchedRemoteIds.has(externalId))
+      .slice(0, 5),
     updated: changes.length,
     changes,
     syncedAt: now,

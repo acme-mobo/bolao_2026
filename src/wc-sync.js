@@ -205,6 +205,8 @@ function summarizeSyncOp(op) {
     skipped:  op.skipped ?? false,
     count:    op.count ?? null,
     changes:  op.changes ?? null,
+    matched:  op.matched ?? null,
+    unmatchedExternalIds: op.unmatchedExternalIds ?? null,
     provider: op.provider ?? null,
     reason:   op.reason ?? null,
     error:    op.error ?? null,
@@ -481,7 +483,14 @@ async function doSyncLive(provider) {
       liveCount: fixtures.length,
       ...(result.updated > 0 ? { lastScoreChange: now, scoreChanges: result.updated } : {}),
     });
-    return { ok: true, count: fixtures.length, changes: result.updated, provider: providerStatus.provider };
+    return {
+      ok: true,
+      count: fixtures.length,
+      changes: result.updated,
+      matched: result.matched,
+      unmatchedExternalIds: result.unmatchedExternalIds,
+      provider: providerStatus.provider,
+    };
   });
 }
 
