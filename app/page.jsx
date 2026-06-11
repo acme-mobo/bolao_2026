@@ -5,7 +5,7 @@ import {
   Clock, HelpCircle, LogOut, Moon, Pencil, Save, Shield, Sun,
   Trash2, Trophy, Users, X,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
   getFirebaseAuth,
@@ -18,6 +18,7 @@ import {
 // ─── API helper ──────────────────────────────────────
 async function api(path, token, options = {}) {
   const response = await fetch(`/api${path}`, {
+    cache: 'no-store',
     ...options,
     headers: {
       'content-type': 'application/json',
@@ -404,6 +405,7 @@ export default function HomePage() {
   const toastIdRef = useRef(0);
   const initialSectionSetRef = useRef(false);
   const userSelectedSectionRef = useRef(false);
+  const lastAutoRefreshRef = useRef(0);
 
   // ─── Theme persistence ──────────────────────────────
   useEffect(() => {
@@ -433,12 +435,31 @@ export default function HomePage() {
   }
 
   // ─── Data loaders ───────────────────────────────────
-  async function loadPublic() {
+  const loadPublic = useCallback(async () => {
     const [gd, td, md] = await Promise.all([api('/groups'), api('/teams'), api('/matches')]);
     setGroups(gd.groups);
     setTeams(td.teams);
     setMatches(md.matches);
-  }
+  }, []);
+
+  const loadPoolData = useCallback(async (poolId = selectedPoolId, nextToken = token, options = {}) => {
+    if (!poolId || !nextToken) return;
+    if (!options.silent) setPredictionsReady(false);
+    const [rankData, predData] = await Promise.all([
+      api(`/pools/${poolId}/leaderboard`, nextToken),
+      api(`/pools/${poolId}/predictions`, nextToken),
+    ]);
+    setLeaderboard(rankData.leaderboard);
+    setPredictions(predData.predictions);
+    setPredictionDrafts((current) => {
+      const drafts = { ...current };
+      for (const p of predData.predictions) {
+        drafts[p.matchId] = { homeGoals: p.homeGoals, awayGoals: p.awayGoals };
+      }
+      return drafts;
+    });
+    setPredictionsReady(true);
+  }, [selectedPoolId, token]);
 
   async function loadProtected(nextToken = token) {
     const [me, poolData] = await Promise.all([
@@ -469,32 +490,16 @@ export default function HomePage() {
       await loadProtected(nextToken);
     });
     return unsub;
-  }, []);
+  }, [loadPublic]);
 
   useEffect(() => {
     if (!selectedPoolId || !token) return;
-    setPredictionsReady(false);
-    Promise.all([
-      api(`/pools/${selectedPoolId}/leaderboard`, token),
-      api(`/pools/${selectedPoolId}/predictions`, token),
-    ])
-      .then(([rankData, predData]) => {
-        setLeaderboard(rankData.leaderboard);
-        setPredictions(predData.predictions);
-        setPredictionDrafts(() => {
-          const drafts = {};
-          for (const p of predData.predictions) {
-            drafts[p.matchId] = { homeGoals: p.homeGoals, awayGoals: p.awayGoals };
-          }
-          return drafts;
-        });
-        setPredictionsReady(true);
-      })
+    loadPoolData(selectedPoolId, token)
       .catch((err) => {
         setPredictionsReady(true);
         addToast(err.message, 'error');
       });
-  }, [selectedPoolId, token]);
+  }, [loadPoolData, selectedPoolId, token]);
 
   function selectSection(next) {
     userSelectedSectionRef.current = true;
@@ -579,7 +584,7 @@ export default function HomePage() {
   async function deletePrediction(matchId) {
     try {
       await api(`/pools/${selectedPoolId}/predictions/${matchId}`, token, { method: 'DELETE' });
-      setPredictions((prev) => prev.filter((p) => p.matchId !== matchId));
+      await loadPoolData(selectedPoolId, token, { silent: true });
       addToast('Palpite removido.', 'info');
     } catch (err) {
       addToast(err.message, 'error');
@@ -610,6 +615,8 @@ export default function HomePage() {
       });
       const data = await api(`/pools/${selectedPoolId}/predictions`, token);
       setPredictions(data.predictions);
+      const rankData = await api(`/pools/${selectedPoolId}/leaderboard`, token);
+      setLeaderboard(rankData.leaderboard);
       setSavedMatches((prev) => new Set([...prev, matchId]));
       setTimeout(() => setSavedMatches((prev) => {
         const n = new Set(prev); n.delete(matchId); return n;
@@ -687,6 +694,40 @@ export default function HomePage() {
         || new Date(a.startsAt) - new Date(b.startsAt);
     });
   }, [todayMatches, now]);
+
+  const hasLiveRefreshWindow = useMemo(() => {
+    return todayMatches.some((match) => {
+      const urgency = getUrgency(match, now);
+      return urgency === 'live' || urgency === 'urgent' || urgency === 'warning';
+    });
+  }, [todayMatches, now]);
+
+  useEffect(() => {
+    if (!selectedPoolId || !token) return;
+
+    async function refreshVisibleData() {
+      if (document.visibilityState !== 'visible') return;
+      const intervalMs = hasLiveRefreshWindow ? 60_000 : 5 * 60_000;
+      if (Date.now() - lastAutoRefreshRef.current < intervalMs) return;
+      lastAutoRefreshRef.current = Date.now();
+      try {
+        await Promise.all([
+          loadPublic(),
+          loadPoolData(selectedPoolId, token, { silent: true }),
+        ]);
+      } catch (err) {
+        addToast(err.message, 'error');
+      }
+    }
+
+    const id = setInterval(refreshVisibleData, 30_000);
+    const onVisible = () => refreshVisibleData();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [hasLiveRefreshWindow, loadPoolData, loadPublic, selectedPoolId, token]);
 
   const resultsMatches = useMemo(() => {
     const statusOrder = { live: 0, finished: 1 };

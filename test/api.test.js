@@ -267,6 +267,58 @@ test('predictions reconhece palpites salvos com id legado do jogo', async () => 
   assert.equal(api.store.db.predictions[0].homeGoals, 3);
 });
 
+test('leaderboard recalcula pontos com placar de jogo em andamento', async () => {
+  const api = await createApi();
+  const register = await request(api, '/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Vagner', email: 'live-rank@example.com', password: '12345678' }),
+  });
+  const token = register.body.token;
+  const userId = register.body.user.id;
+
+  await api.store.transaction((db) => {
+    db.teams = [
+      { id: 'team_MEX', name: 'Mexico', code: 'MEX', group: 'A' },
+      { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA', group: 'A' },
+    ];
+    db.matches = [
+      {
+        id: 'match_1',
+        matchNumber: 1,
+        homeTeamId: 'team_MEX',
+        awayTeamId: 'team_RSA',
+        stage: 'group',
+        group: 'A',
+        startsAt: '2026-06-11T19:00:00.000Z',
+        lockAt: '2026-06-11T19:00:00.000Z',
+        status: 'live',
+        homeGoals: 1,
+        awayGoals: 0,
+      },
+    ];
+    db.pools = [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: userId, isActive: true }];
+    db.memberships = [{ poolId: 'pool_copa_2026', userId, joinedAt: '2026-06-01T00:00:00.000Z' }];
+    db.predictions = [
+      {
+        id: 'pred_live',
+        poolId: 'pool_copa_2026',
+        userId,
+        matchId: 'match_1',
+        homeGoals: 1,
+        awayGoals: 0,
+      },
+    ];
+  });
+
+  const response = await request(api, '/pools/pool_copa_2026/leaderboard', {
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.leaderboard[0].points, 25);
+  assert.equal(response.body.leaderboard[0].exactCount, 1);
+});
+
 test('sincroniza resultado via provider de live score', async () => {
   const fakeProvider = {
     getStatus() {

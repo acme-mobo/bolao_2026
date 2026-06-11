@@ -439,9 +439,13 @@ async function doSyncDaily(client, date) {
     const fixtures = await client.fetchDailyFixtures(date);
     await writeDailyDoc(date, fixtures);
     await writeFixturesBatch(fixtures);
-    await bridgeToBolaoDB(fixtures);
-    await writeSyncStatus({ lastDailyFixtures: new Date().toISOString() });
-    return { ok: true, count: fixtures.length };
+    const changes = await bridgeToBolaoDB(fixtures);
+    const now = new Date().toISOString();
+    await writeSyncStatus({
+      lastDailyFixtures: now,
+      ...(changes.length > 0 ? { lastScoreChange: now, scoreChanges: changes.length } : {}),
+    });
+    return { ok: true, count: fixtures.length, changes: changes.length };
   });
 }
 
@@ -452,9 +456,13 @@ async function doSyncDailyFromProvider(provider, date) {
       .filter((fixture) => fixture.date?.slice(0, 10) === date);
     await writeDailyDoc(date, fixtures);
     await writeFixturesBatch(fixtures);
-    await bridgeToBolaoDB(fixtures, providerStatus.provider);
-    await writeSyncStatus({ lastDailyFixtures: new Date().toISOString() });
-    return { ok: true, count: fixtures.length, provider: providerStatus.provider };
+    const changes = await bridgeToBolaoDB(fixtures, providerStatus.provider);
+    const now = new Date().toISOString();
+    await writeSyncStatus({
+      lastDailyFixtures: now,
+      ...(changes.length > 0 ? { lastScoreChange: now, scoreChanges: changes.length } : {}),
+    });
+    return { ok: true, count: fixtures.length, changes: changes.length, provider: providerStatus.provider };
   });
 }
 
@@ -467,7 +475,12 @@ async function doSyncLive(provider) {
     const db = await store.load();
     const result = applyLiveFixturesToDb(db, fixtures, providerStatus);
     if (result.updated > 0) await store.save();
-    await writeSyncStatus({ lastLive: new Date().toISOString(), liveCount: fixtures.length });
+    const now = new Date().toISOString();
+    await writeSyncStatus({
+      lastLive: now,
+      liveCount: fixtures.length,
+      ...(result.updated > 0 ? { lastScoreChange: now, scoreChanges: result.updated } : {}),
+    });
     return { ok: true, count: fixtures.length, changes: result.updated, provider: providerStatus.provider };
   });
 }
