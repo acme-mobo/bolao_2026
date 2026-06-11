@@ -476,6 +476,102 @@ button { cursor: pointer; border: 0; }
 .metricPanel.clickable:hover { border-color: var(--brand); }
 .metricPanel:not(.clickable):hover { border-color: var(--brand-dark); }
 
+.summaryPanel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.summaryUser {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.summaryIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--brand-dim);
+  color: var(--brand);
+  flex-shrink: 0;
+}
+
+.summaryUserText {
+  min-width: 0;
+}
+
+.summaryStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.summaryStat {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg2);
+  color: inherit;
+  text-align: left;
+}
+
+.summaryAction {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.summaryAction:hover {
+  border-color: var(--brand);
+  background: var(--surface-hover);
+}
+
+.summaryAction.danger {
+  border-color: rgba(244,63,94,0.3);
+}
+
+.summaryAction.danger .summaryValue,
+.summaryAction.danger .summaryStatHead svg {
+  color: var(--danger);
+}
+
+.summaryStatHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.summaryValue {
+  margin-top: 5px;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.summarySub {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .metricHeader {
   display: flex;
   align-items: center;
@@ -1288,22 +1384,40 @@ button { cursor: pointer; border: 0; }
   text-transform: uppercase;
 }
 
+.groupTableHead,
 .groupTeam {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(6, 24px);
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   padding: 7px 11px;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
 }
 
+.groupTableHead {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: var(--bg);
+}
+
+.groupTableHead span:not(:first-child),
+.groupTeam span:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .groupTeam:last-child { border-bottom: 0; }
 
 .groupTeamCode {
-  min-width: 34px;
+  display: inline-block;
+  min-width: 30px;
   font-size: 12px;
   font-weight: 800;
   color: var(--brand);
+  margin-right: 7px;
 }
 
 .groupTeamName {
@@ -1757,6 +1871,14 @@ button { cursor: pointer; border: 0; }
 @media (max-width: 768px) {
   .shell { width: calc(100% - 20px); padding-top: 14px; }
   .mainPanel, .sidePanel, .metricPanel { grid-column: span 12; }
+  .summaryPanel {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+  .summaryStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .summaryValue { font-size: 22px; }
   .heroPanel { flex-direction: column; align-items: flex-start; }
   .heroBanner { display: none; }
   .authBanner { display: none; }
@@ -1767,14 +1889,194 @@ button { cursor: pointer; border: 0; }
 }
 
 @media (max-width: 520px) {
-  .matchCardBody {
-    grid-template-columns: 1fr;
+  .panel {
+    padding: 12px;
+  }
+
+  .panelTitle {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+  }
+
+  .summaryPanel {
     gap: 10px;
   }
-  .teamBlock.away { text-align: left; }
+
+  .summaryUser {
+    align-items: start;
+  }
+
+  .summaryStats {
+    gap: 7px;
+  }
+
+  .summaryStat {
+    padding: 9px;
+  }
+
+  .summaryValue {
+    font-size: 20px;
+  }
+
+  .summarySub {
+    font-size: 10px;
+  }
+
+  .profileNameRow {
+    min-height: 28px;
+    font-size: 16px;
+  }
+
+  .editBtn {
+    opacity: 1;
+  }
+
+  .navTabs button {
+    min-height: 34px;
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .countBadge {
+    min-width: 15px;
+    height: 15px;
+    font-size: 9px;
+  }
+
+  .subFilterBar {
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .subFilterBar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .subFilterBar button {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    white-space: nowrap;
+  }
+
+  .matchCardHead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px 8px;
+    padding: 6px 9px;
+  }
+
+  .matchCardLeft,
+  .matchCardRight {
+    min-width: 0;
+  }
+
+  .matchCardCenter {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: start;
+  }
+
+  .matchCardRight {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-content: center;
+  }
+
+  .matchCardBody {
+    grid-template-columns: minmax(58px, 1fr) auto minmax(58px, 1fr);
+    gap: 6px;
+    padding: 10px 9px;
+  }
+
+  .gameCard .matchCardBody {
+    padding: 10px 9px;
+    gap: 6px;
+  }
+
+  .teamBlock {
+    min-width: 0;
+  }
+
+  .teamBlock.away { text-align: right; }
+
+  .teamFlag {
+    font-size: 22px;
+  }
+
+  .gameCard .teamFlag {
+    font-size: 23px;
+  }
+
+  .teamCode,
+  .gameCard .teamCode {
+    font-size: 15px;
+  }
+
+  .teamFullName {
+    font-size: 10px;
+  }
+
   .scoreCenter {
-    flex-direction: row;
+    min-width: 0;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+  }
+
+  .scoreInputs {
+    gap: 3px;
+  }
+
+  .stepper button {
+    width: 22px;
+    height: 30px;
+  }
+
+  .stepperVal {
+    width: 25px;
+    height: 30px;
+    font-size: 15px;
+  }
+
+  .btnSave {
+    width: 30px;
+    height: 30px;
+  }
+
+  .gameScore {
+    min-width: 70px;
+    padding: 6px 8px;
+    gap: 5px;
+  }
+
+  .gameScore .resultNum {
+    min-width: 18px;
+    font-size: 22px;
+  }
+
+  .gameScore .resultSep {
+    font-size: 13px;
+  }
+
+  .vsLabel {
+    font-size: 14px;
+  }
+
+  .matchCardFoot {
+    align-items: flex-start;
+    padding: 6px 9px;
+    gap: 8px;
+  }
+
+  .matchCardFoot > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .matchCardFootRight {
+    flex-shrink: 0;
   }
 }

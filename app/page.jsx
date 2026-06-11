@@ -385,6 +385,7 @@ export default function HomePage() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [predictions, setPredictions] = useState([]);
   const [predictionDrafts, setPredictionDrafts] = useState({});
+  const [predictionsReady, setPredictionsReady] = useState(false);
 
   // UI state
   const [theme, setTheme]         = useState('dark');
@@ -401,6 +402,8 @@ export default function HomePage() {
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
   const [scoringModal, setScoringModal] = useState(false);
   const toastIdRef = useRef(0);
+  const initialSectionSetRef = useRef(false);
+  const userSelectedSectionRef = useRef(false);
 
   // ─── Theme persistence ──────────────────────────────
   useEffect(() => {
@@ -455,7 +458,10 @@ export default function HomePage() {
         setToken(''); setProfile(null); setActivePool(null);
         setSelectedPoolId('');
         setLeaderboard([]); setPredictions([]);
+        setPredictionsReady(false);
         setPredictionDrafts({});
+        initialSectionSetRef.current = false;
+        userSelectedSectionRef.current = false;
         return;
       }
       const nextToken = await nextUser.getIdToken();
@@ -467,6 +473,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!selectedPoolId || !token) return;
+    setPredictionsReady(false);
     Promise.all([
       api(`/pools/${selectedPoolId}/leaderboard`, token),
       api(`/pools/${selectedPoolId}/predictions`, token),
@@ -481,9 +488,24 @@ export default function HomePage() {
           }
           return drafts;
         });
+        setPredictionsReady(true);
       })
-      .catch((err) => addToast(err.message, 'error'));
+      .catch((err) => {
+        setPredictionsReady(true);
+        addToast(err.message, 'error');
+      });
   }, [selectedPoolId, token]);
+
+  function selectSection(next) {
+    userSelectedSectionRef.current = true;
+    setSectionMode(next);
+  }
+
+  function selectPendingPredictions() {
+    userSelectedSectionRef.current = true;
+    setSectionMode('predictions');
+    setNavMode('pending');
+  }
 
   // ─── Auth handlers ───────────────────────────────────
   async function submitAuth(event) {
@@ -610,6 +632,19 @@ export default function HomePage() {
       })
       .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
   }, [matches, predictions]);
+
+  useEffect(() => {
+    if (!token || !selectedPoolId || !matches.length || !predictionsReady) return;
+    if (initialSectionSetRef.current || userSelectedSectionRef.current) return;
+
+    if (pendingMatches.length > 0) {
+      setSectionMode('predictions');
+      setNavMode('pending');
+    } else {
+      setSectionMode('today');
+    }
+    initialSectionSetRef.current = true;
+  }, [token, selectedPoolId, matches.length, predictionsReady, pendingMatches.length]);
 
   function isPendingMatch(m) {
     return m.status !== 'finished'
@@ -783,91 +818,83 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* ── Metric: Jogador ──────────────────────── */}
-          <section className="metricPanel">
-            <div className="metricHeader">
-              <span className="metricLabel">Jogador</span>
-              <div className="metricIcon"><Shield size={15} /></div>
+          {/* ── Account Summary ──────────────────────── */}
+          <section className="summaryPanel">
+            <div className="summaryUser">
+              <div className="summaryIcon"><Shield size={15} /></div>
+              <div className="summaryUserText">
+                <span className="metricLabel">Jogador</span>
+                {editingName ? (
+                  <div className="editNameRow">
+                    <input
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveDisplayName();
+                        if (e.key === 'Escape') setEditingName(false);
+                      }}
+                      placeholder="Seu nome"
+                      autoFocus
+                    />
+                    <button className="editNameBtn save" onClick={saveDisplayName} title="Salvar">
+                      <Check size={13} />
+                    </button>
+                    <button className="editNameBtn cancel" onClick={() => setEditingName(false)} title="Cancelar">
+                      <X size={13} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="profileNameRow">
+                    <span className="profileNameText">
+                      {profile?.name ?? user.displayName ?? user.email}
+                    </span>
+                    <button className="editBtn" onClick={startEditName} title="Editar nome">
+                      <Pencil size={12} />
+                    </button>
+                  </div>
+                )}
+                <div className="metricSub">
+                  {profile?.role ?? 'player'}
+                  {' · '}
+                  <button
+                    className="dangerLink"
+                    onClick={() => { setDeleteConfirmEmail(''); setDeleteAccountModal(true); }}
+                    title="Excluir conta permanentemente"
+                  >
+                    excluir conta
+                  </button>
+                </div>
+              </div>
             </div>
-            {editingName ? (
-              <div className="editNameRow">
-                <input
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') saveDisplayName();
-                    if (e.key === 'Escape') setEditingName(false);
-                  }}
-                  placeholder="Seu nome"
-                  autoFocus
-                />
-                <button className="editNameBtn save" onClick={saveDisplayName} title="Salvar">
-                  <Check size={13} />
-                </button>
-                <button className="editNameBtn cancel" onClick={() => setEditingName(false)} title="Cancelar">
-                  <X size={13} />
-                </button>
+
+            <div className="summaryStats">
+              <div className="summaryStat">
+                <div className="summaryStatHead">
+                  <span className="metricLabel">Pontos</span>
+                  <Trophy size={14} />
+                </div>
+                <div className="summaryValue">{myPoints}</div>
+                <div className="summarySub">total acumulado</div>
               </div>
-            ) : (
-              <div className="profileNameRow">
-                <span className="profileNameText">
-                  {profile?.name ?? user.displayName ?? user.email}
-                </span>
-                <button className="editBtn" onClick={startEditName} title="Editar nome">
-                  <Pencil size={12} />
-                </button>
-              </div>
-            )}
-            <div className="metricSub">
-              {profile?.role ?? 'player'}
-              {' · '}
               <button
-                className="dangerLink"
-                onClick={() => { setDeleteConfirmEmail(''); setDeleteAccountModal(true); }}
-                title="Excluir conta permanentemente"
+                className={`summaryStat summaryAction${pendingMatches.length > 0 ? ' danger' : ''}`}
+                onClick={selectPendingPredictions}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') selectPendingPredictions();
+                }}
+                title="Ver palpites pendentes"
               >
-                excluir conta
+                <div className="summaryStatHead">
+                  <span className="metricLabel">Pendentes</span>
+                  <CalendarDays size={14} />
+                </div>
+                <div className="summaryValue">{pendingMatches.length}</div>
+                <div className="summarySub">
+                  {pendingMatches.length === 0
+                    ? 'tudo em dia'
+                    : `jogo${pendingMatches.length > 1 ? 's' : ''} sem palpite`}
+                </div>
               </button>
-            </div>
-          </section>
-
-          {/* ── Metric: Pontos ───────────────────────── */}
-          <section className="metricPanel">
-            <div className="metricHeader">
-              <span className="metricLabel">Pontos</span>
-              <div className="metricIcon"><Trophy size={15} /></div>
-            </div>
-            <div className="metricValue">{myPoints}</div>
-            <div className="metricSub">total acumulado</div>
-          </section>
-
-          {/* ── Metric: Pendentes (clickable) ────────── */}
-          <section
-            className={`metricPanel clickable`}
-            onClick={() => { setSectionMode('predictions'); setNavMode('pending'); }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                setSectionMode('predictions');
-                setNavMode('pending');
-              }
-            }}
-            title="Ver palpites pendentes"
-          >
-            <div className="metricHeader">
-              <span className="metricLabel">Pendentes</span>
-              <div className={`metricIcon${pendingMatches.length > 0 ? ' danger' : ''}`}>
-                <CalendarDays size={15} />
-              </div>
-            </div>
-            <div className={`metricValue${pendingMatches.length > 0 ? ' danger' : ''}`}>
-              {pendingMatches.length}
-            </div>
-            <div className="metricSub">
-              {pendingMatches.length === 0
-                ? 'tudo em dia!'
-                : `jogo${pendingMatches.length > 1 ? 's' : ''} sem palpite`}
             </div>
           </section>
 
@@ -882,7 +909,7 @@ export default function HomePage() {
             <div className="navTabs" role="tablist">
               <button role="tab" aria-selected={sectionMode === 'predictions'}
                 className={sectionMode === 'predictions' ? 'active' : ''}
-                onClick={() => setSectionMode('predictions')}>
+                onClick={() => selectSection('predictions')}>
                 Palpites
                 {pendingMatches.length > 0 && (
                   <span className="countBadge">{pendingMatches.length}</span>
@@ -890,7 +917,7 @@ export default function HomePage() {
               </button>
               <button role="tab" aria-selected={sectionMode === 'today'}
                 className={sectionMode === 'today' ? 'active' : ''}
-                onClick={() => setSectionMode('today')}>
+                onClick={() => selectSection('today')}>
                 Hoje
                 {prioritizedTodayMatches.length > 0 && (
                   <span className="countBadge neutral">{prioritizedTodayMatches.length}</span>
@@ -898,7 +925,7 @@ export default function HomePage() {
               </button>
               <button role="tab" aria-selected={sectionMode === 'results'}
                 className={sectionMode === 'results' ? 'active' : ''}
-                onClick={() => setSectionMode('results')}>
+                onClick={() => selectSection('results')}>
                 Resultados
               </button>
             </div>
@@ -1126,20 +1153,37 @@ export default function HomePage() {
             )}
           </section>
 
-          {/* ── Full-width: Grupos ───────────────────── */}
+          {/* ── Full-width: Tabela ───────────────────── */}
           <section className="panel groupsPanel">
             <div className="panelTitle">
               <div className="titleIcon"><Users size={13} /></div>
-              <h2>Grupos</h2>
+              <h2>Tabela</h2>
             </div>
             <div className="groupsGrid">
               {groups.map((g) => (
                 <div key={g.group} className="groupBox">
                   <div className="groupBoxHead">Grupo {g.group}</div>
-                  {g.teams.map((team) => (
-                    <div key={team.id} className="groupTeam">
-                      <span className="groupTeamCode">{team.code}</span>
-                      <span className="groupTeamName">{team.name}</span>
+                  <div className="groupTableHead">
+                    <span>Time</span>
+                    <span>P</span>
+                    <span>J</span>
+                    <span>V</span>
+                    <span>E</span>
+                    <span>D</span>
+                    <span>SG</span>
+                  </div>
+                  {(g.table?.length ? g.table : g.teams).map((team) => (
+                    <div key={team.id ?? team.teamId ?? team.teamCode ?? team.name} className="groupTeam">
+                      <span className="groupTeamName">
+                        <span className="groupTeamCode">{team.teamCode ?? team.code}</span>
+                        {team.teamName ?? team.name}
+                      </span>
+                      <span>{team.points ?? 0}</span>
+                      <span>{team.played ?? 0}</span>
+                      <span>{team.won ?? 0}</span>
+                      <span>{team.drawn ?? 0}</span>
+                      <span>{team.lost ?? 0}</span>
+                      <span>{team.goalsDiff ?? 0}</span>
                     </div>
                   ))}
                 </div>
