@@ -37,7 +37,7 @@ function collectionToMap(collection, keyForItem = (item) => item.id) {
   return Object.fromEntries(collection.map((item) => [keyForItem(item), item]));
 }
 
-function toNoSqlShape(db) {
+export function toNoSqlShape(db) {
   return {
     users: collectionToMap(db.users),
     teams: collectionToMap(db.teams),
@@ -45,6 +45,7 @@ function toNoSqlShape(db) {
     pools: collectionToMap(db.pools),
     memberships: collectionToMap(db.memberships, membershipId),
     predictions: collectionToMap(db.predictions),
+    standings: collectionToMap(db.standings),
   };
 }
 

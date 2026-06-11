@@ -3,6 +3,7 @@ import { assert } from './errors.js';
 import { newId } from './id.js';
 import { notFound, parseUrl, readJson, sanitizeUser, send } from './http.js';
 import { createLiveScoreProvider, syncLiveScores } from './live-score.js';
+import { findMatchByReference, predictionBelongsToMatch } from './match-reference.js';
 import { buildLeaderboard, scorePrediction } from './scoring.js';
 import { optionalDate, requireEmail, requireInteger, requireString } from './validation.js';
 
@@ -367,13 +368,17 @@ export function createRouter(store, options = {}) {
         403,
         'Voce nao participa deste bolao',
       );
-      const match = db.matches.find((m) => m.id === matchId);
+      const match = findMatchByReference(db.matches, matchId);
       assert(match, 404, 'Jogo nao encontrado');
       assert(new Date(match.lockAt).getTime() > Date.now(), 409, 'Palpites encerrados para este jogo');
 
       await store.transaction((currentDb) => {
+        const currentMatch = findMatchByReference(currentDb.matches, matchId);
         const idx = currentDb.predictions.findIndex(
-          (p) => p.poolId === poolId && p.userId === user.id && p.matchId === matchId,
+          (p) => p.poolId === poolId
+            && p.userId === user.id
+            && currentMatch
+            && predictionBelongsToMatch(p, currentMatch),
         );
         assert(idx !== -1, 404, 'Palpite nao encontrado');
         currentDb.predictions.splice(idx, 1);
@@ -397,14 +402,17 @@ export function createRouter(store, options = {}) {
           403,
           'Voce nao participa deste bolao',
         );
-        const match = currentDb.matches.find((candidate) => candidate.id === matchId);
+        const match = findMatchByReference(currentDb.matches, matchId);
         assert(match, 404, 'Jogo nao encontrado');
         assert(new Date(match.lockAt).getTime() > Date.now(), 409, 'Palpites encerrados para este jogo');
 
         const existing = currentDb.predictions.find(
-          (candidate) => candidate.poolId === poolId && candidate.userId === user.id && candidate.matchId === matchId,
+          (candidate) => candidate.poolId === poolId
+            && candidate.userId === user.id
+            && predictionBelongsToMatch(candidate, match),
         );
         if (existing) {
+          existing.matchId = match.id;
           existing.homeGoals = homeGoals;
           existing.awayGoals = awayGoals;
           existing.updatedAt = new Date().toISOString();
@@ -415,7 +423,7 @@ export function createRouter(store, options = {}) {
           id: newId('pred'),
           poolId,
           userId: user.id,
-          matchId,
+          matchId: match.id,
           homeGoals,
           awayGoals,
           createdAt: new Date().toISOString(),
@@ -439,8 +447,13 @@ export function createRouter(store, options = {}) {
       const predictions = db.predictions
         .filter((prediction) => prediction.poolId === poolId && prediction.userId === user.id)
         .map((prediction) => {
-          const match = db.matches.find((candidate) => candidate.id === prediction.matchId);
-          return { ...prediction, points: match ? scorePrediction(match, prediction) : 0 };
+          const match = findMatchByReference(db.matches, prediction.matchId);
+          return {
+            ...prediction,
+            matchId: match?.id ?? prediction.matchId,
+            legacyMatchId: match && match.id !== prediction.matchId ? prediction.matchId : undefined,
+            points: match ? scorePrediction(match, prediction) : 0,
+          };
         });
 
       send(response, 200, { predictions });
@@ -452,12 +465,12 @@ export function createRouter(store, options = {}) {
         db.memberships.some((m) => m.poolId === poolId && m.userId === user.id),
         403, 'Voce nao participa deste bolao',
       );
-      const match = db.matches.find((m) => m.id === matchId);
+      const match = findMatchByReference(db.matches, matchId);
       assert(match, 404, 'Jogo nao encontrado');
       assert(match.status === 'finished', 403, 'Palpites visiveis somente apos encerramento do jogo');
 
       const predictions = db.predictions
-        .filter((p) => p.poolId === poolId && p.matchId === matchId)
+        .filter((p) => p.poolId === poolId && predictionBelongsToMatch(p, match))
         .map((p) => {
           const predUser = db.users.find((u) => u.id === p.userId);
           return {

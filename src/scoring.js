@@ -1,3 +1,5 @@
+import { findMatchByReference } from './match-reference.js';
+
 export function matchOutcome(homeGoals, awayGoals) {
   if (homeGoals > awayGoals) return 'home';
   if (awayGoals > homeGoals) return 'away';
@@ -37,7 +39,7 @@ export function buildLeaderboard(db, poolId) {
 
       let points = 0, exactCount = 0, correctOutcomeCount = 0;
       for (const p of predictions) {
-        const match = db.matches.find((m) => m.id === p.matchId);
+        const match = findMatchByReference(db.matches, p.matchId);
         if (!match || !Number.isInteger(match.homeGoals)) continue;
         const pts = scorePrediction(match, p);
         points += pts;

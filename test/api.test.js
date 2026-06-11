@@ -204,6 +204,69 @@ test('groups inclui tabela quando standings foram sincronizados', async () => {
   assert.equal(response.body.groups[0].table[0].points, 6);
 });
 
+test('predictions reconhece palpites salvos com id legado do jogo', async () => {
+  const api = await createApi();
+  const register = await request(api, '/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Vagner', email: 'legacy-pred@example.com', password: '12345678' }),
+  });
+  const token = register.body.token;
+  const userId = register.body.user.id;
+
+  await api.store.transaction((db) => {
+    db.teams = [
+      { id: 'team_MEX', name: 'Mexico', code: 'MEX', group: 'A' },
+      { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA', group: 'A' },
+    ];
+    db.matches = [
+      {
+        id: 'current_match_1',
+        matchNumber: 1,
+        homeTeamId: 'team_MEX',
+        awayTeamId: 'team_RSA',
+        stage: 'group',
+        group: 'A',
+        startsAt: '2099-06-11T19:00:00.000Z',
+        lockAt: '2099-06-11T19:00:00.000Z',
+        status: 'scheduled',
+        homeGoals: null,
+        awayGoals: null,
+      },
+    ];
+    db.pools = [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: userId, isActive: true }];
+    db.memberships = [{ poolId: 'pool_copa_2026', userId, joinedAt: '2026-06-01T00:00:00.000Z' }];
+    db.predictions = [
+      {
+        id: 'pred_legacy',
+        poolId: 'pool_copa_2026',
+        userId,
+        matchId: 'match_1',
+        homeGoals: 2,
+        awayGoals: 1,
+      },
+    ];
+  });
+
+  const list = await request(api, '/pools/pool_copa_2026/predictions', {
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  assert.equal(list.status, 200);
+  assert.equal(list.body.predictions[0].matchId, 'current_match_1');
+  assert.equal(list.body.predictions[0].legacyMatchId, 'match_1');
+
+  const update = await request(api, '/pools/pool_copa_2026/predictions', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    body: JSON.stringify({ matchId: 'current_match_1', homeGoals: 3, awayGoals: 0 }),
+  });
+
+  assert.equal(update.status, 200);
+  assert.equal(api.store.db.predictions.length, 1);
+  assert.equal(api.store.db.predictions[0].matchId, 'current_match_1');
+  assert.equal(api.store.db.predictions[0].homeGoals, 3);
+});
+
 test('sincroniza resultado via provider de live score', async () => {
   const fakeProvider = {
     getStatus() {
