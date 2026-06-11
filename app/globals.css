@@ -1885,7 +1885,7 @@ button { cursor: pointer; border: 0; }
   .toastWrap { right: 10px; left: 10px; top: 10px; }
   .toast { max-width: 100%; }
   .navTabs button { font-size: 11px; padding: 0 6px; }
-  .groupsGrid { grid-template-columns: repeat(2, 1fr); }
+  .groupsGrid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {
@@ -1957,6 +1957,13 @@ button { cursor: pointer; border: 0; }
     flex: 0 0 auto;
     padding: 5px 10px;
     white-space: nowrap;
+  }
+
+  .groupTableHead,
+  .groupTeam {
+    grid-template-columns: minmax(0, 1fr) repeat(6, 22px);
+    gap: 4px;
+    padding: 7px 9px;
   }
 
   .matchCardHead {
