@@ -297,6 +297,60 @@ export function buildSyncResponse({
   };
 }
 
+export function buildCompactSyncResponse(response, providerStatus = {}) {
+  const okOps = (response.ops ?? [])
+    .filter((op) => op.ok)
+    .map((op) => ({
+      op: op.op,
+      provider: op.provider,
+      count: op.count,
+      changes: op.changes,
+    }));
+  const errorOps = (response.ops ?? [])
+    .filter((op) => op.error)
+    .map((op) => ({
+      op: op.op,
+      provider: op.provider,
+      error: op.error,
+    }));
+  const skippedOps = (response.ops ?? [])
+    .filter((op) => op.skipped)
+    .map((op) => ({
+      op: op.op,
+      reason: op.reason,
+    }));
+
+  const liveProvider = providerStatus.provider ?? null;
+  return {
+    ok: response.status !== 'error',
+    status: response.status,
+    message: response.message,
+    provider: {
+      live: liveProvider,
+      configured: providerStatus.configured ?? null,
+      quotaBucket: providerStatus.quotaBucket ?? null,
+    },
+    warning: liveProvider && liveProvider !== 'livescore'
+      ? 'LIVE_SCORE_PROVIDER não está livescore neste ambiente; o sync ainda pode chamar API-Football.'
+      : null,
+    mode: response.mode,
+    plan: response.plan,
+    quota: {
+      apiFootballCalls: response.quota?.apiCallsMade ?? 0,
+      used: response.quota?.usedAfter ?? response.used,
+      budget: response.quota?.budget ?? null,
+      remainingBudget: response.quota?.remainingBudget ?? null,
+    },
+    summary: response.summary,
+    ran: okOps,
+    skipped: skippedOps,
+    errors: errorOps,
+    startedAt: response.startedAt,
+    finishedAt: response.finishedAt,
+    durationMs: response.durationMs,
+  };
+}
+
 // ─── Bridge para o bolão (scoring de palpites) ────────
 // Atualiza db.matches com placares da API-Football para que o scoring funcione
 async function bridgeToBolaoDB(fixtures, providerName = 'api-football') {

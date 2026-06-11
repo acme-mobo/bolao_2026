@@ -1,5 +1,6 @@
 import { config } from '../../../src/config.js';
-import { getSyncStatus, orchestrate, seedLocalFixtures } from '../../../src/wc-sync.js';
+import { createLiveScoreProvider } from '../../../src/live-score.js';
+import { buildCompactSyncResponse, getSyncStatus, orchestrate } from '../../../src/wc-sync.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,8 +29,12 @@ export async function POST(request) {
     return Response.json({ error: 'Não autorizado' }, { status: 401 });
   }
   try {
+    const url = new URL(request.url);
+    const verbose = url.searchParams.get('verbose') === '1'
+      || request.headers.get('x-sync-verbose') === '1';
+    const providerStatus = createLiveScoreProvider().getStatus();
     const result = await orchestrate();
-    return Response.json(result);
+    return Response.json(verbose ? result : buildCompactSyncResponse(result, providerStatus));
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }

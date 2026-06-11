@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import {
   buildSyncLogEntry,
+  buildCompactSyncResponse,
   buildSyncResponse,
   getApiFootballDailyBudget,
   getApiFootballCapabilities,
@@ -240,4 +241,76 @@ test('buildSyncResponse destaca status, quota e resumo das operacoes', () => {
   assert.equal(response.apiCallsMade, 1);
   assert.equal(response.used, 8);
   assert.equal(response.ops[1].fixtures, undefined);
+});
+
+test('buildCompactSyncResponse resume resposta do cron com provider ativo', () => {
+  config.apiFootballSyncDailyBudget = 60;
+
+  const response = buildSyncResponse({
+    startedAt: '2026-06-11T16:00:00.000Z',
+    finishedAt: '2026-06-11T16:00:02.000Z',
+    status: 'ok',
+    mode: 'normal',
+    plan: 'free',
+    usedBefore: 33,
+    usedAfter: 33,
+    apiCallsMade: 0,
+    ops: [
+      { op: 'standings', ok: true, provider: 'livescore', count: 48 },
+      { op: 'live', skipped: true, reason: 'fora da janela de live' },
+    ],
+  });
+
+  const compact = buildCompactSyncResponse(response, {
+    provider: 'livescore',
+    configured: true,
+    quotaBucket: null,
+  });
+
+  assert.equal(compact.ok, true);
+  assert.equal(compact.provider.live, 'livescore');
+  assert.equal(compact.provider.quotaBucket, null);
+  assert.equal(compact.warning, null);
+  assert.deepEqual(compact.quota, {
+    apiFootballCalls: 0,
+    used: 33,
+    budget: 60,
+    remainingBudget: 27,
+  });
+  assert.deepEqual(compact.ran, [
+    { op: 'standings', provider: 'livescore', count: 48, changes: null },
+  ]);
+  assert.deepEqual(compact.skipped, [
+    { op: 'live', reason: 'fora da janela de live' },
+  ]);
+  assert.deepEqual(compact.errors, []);
+});
+
+test('buildCompactSyncResponse alerta quando provider ativo nao e livescore', () => {
+  const response = buildSyncResponse({
+    startedAt: '2026-06-11T16:00:00.000Z',
+    finishedAt: '2026-06-11T16:00:02.000Z',
+    status: 'error',
+    mode: 'normal',
+    plan: 'free',
+    usedBefore: 33,
+    usedAfter: 34,
+    apiCallsMade: 1,
+    ops: [
+      { op: 'daily', error: 'API-Football error' },
+    ],
+  });
+
+  const compact = buildCompactSyncResponse(response, {
+    provider: 'api-football',
+    configured: true,
+    quotaBucket: 'api-football',
+  });
+
+  assert.equal(compact.ok, false);
+  assert.equal(compact.provider.live, 'api-football');
+  assert.match(compact.warning, /LIVE_SCORE_PROVIDER/);
+  assert.deepEqual(compact.errors, [
+    { op: 'daily', provider: null, error: 'API-Football error' },
+  ]);
 });
