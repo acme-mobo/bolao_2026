@@ -3,6 +3,8 @@ import test, { afterEach } from 'node:test';
 import {
   ApiFootballLiveScoreProvider,
   FootballDataLiveScoreProvider,
+  LiveScoreLiveScoreProvider,
+  applyLiveFixturesToDb,
   createLiveScoreProvider,
 } from '../src/live-score.js';
 import { config } from '../src/config.js';
@@ -42,6 +44,16 @@ test('createLiveScoreProvider usa football-data por configuracao', () => {
   assert.equal(provider.quotaBucket, null);
 });
 
+test('createLiveScoreProvider usa LiveScore por configuracao', () => {
+  config.liveScoreProvider = 'livescore';
+
+  const provider = createLiveScoreProvider({ fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/' });
+
+  assert.equal(provider instanceof LiveScoreLiveScoreProvider, true);
+  assert.equal(provider.getStatus().provider, 'livescore');
+  assert.equal(provider.quotaBucket, null);
+});
+
 test('createLiveScoreProvider falha com provider invalido', () => {
   config.liveScoreProvider = 'unknown';
 
@@ -49,6 +61,49 @@ test('createLiveScoreProvider falha com provider invalido', () => {
     () => createLiveScoreProvider(),
     /LIVE_SCORE_PROVIDER invalido: unknown/,
   );
+});
+
+test('applyLiveFixturesToDb atualiza partida local com fixture do LiveScore', () => {
+  const db = {
+    teams: [
+      { id: 'team_MEX', code: 'MEX' },
+      { id: 'team_RSA', code: 'RSA' },
+    ],
+    matches: [
+      {
+        id: 'match_1',
+        matchNumber: 1,
+        homeTeamId: 'team_MEX',
+        awayTeamId: 'team_RSA',
+        status: 'scheduled',
+        homeGoals: null,
+        awayGoals: null,
+      },
+    ],
+  };
+
+  const result = applyLiveFixturesToDb(
+    db,
+    [
+      {
+        externalId: '1417909',
+        status: 'finished',
+        homeCode: 'MEX',
+        awayCode: 'RSA',
+        homeGoals: 2,
+        awayGoals: 0,
+        updatedAt: '2026-06-11T21:00:00.000Z',
+      },
+    ],
+    { provider: 'livescore', configured: true },
+  );
+
+  assert.equal(result.updated, 1);
+  assert.equal(db.matches[0].status, 'finished');
+  assert.equal(db.matches[0].homeGoals, 2);
+  assert.equal(db.matches[0].awayGoals, 0);
+  assert.equal(db.matches[0].externalMatchId, '1417909');
+  assert.equal(db.matches[0].externalProvider, 'livescore');
 });
 
 test('FootballDataLiveScoreProvider normaliza fixtures para contrato comum', async () => {

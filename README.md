@@ -10,7 +10,7 @@ O projeto inclui:
 - Firestore como banco de dados de producao.
 - JSON local como fallback para desenvolvimento e testes.
 - Seed com 48 selecoes, 12 grupos e 72 jogos da fase de grupos.
-- Integracao opcional com football-data.org para live score.
+- Integracao opcional com API-Football, football-data.org ou LiveScore para live score.
 
 ## Requisitos
 
@@ -69,16 +69,25 @@ Para desenvolvimento local, `GOOGLE_APPLICATION_CREDENTIALS=/caminho/service-acc
 
 ### Live Score
 
-- `LIVE_SCORE_PROVIDER=api-football|football-data`: padrão `api-football`.
+- `LIVE_SCORE_PROVIDER=api-football|football-data|livescore`: padrão `api-football`.
 - `FOOTBALL_DATA_API_TOKEN`
 - `FOOTBALL_DATA_BASE_URL=https://api.football-data.org/v4`
 - `LIVE_SCORE_COMPETITION_CODE=WC`
 - `LIVE_SCORE_SEASON=2026`
+- `LIVESCORE_FIXTURES_URL=https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/`
+- `LIVESCORE_RESULTS_URL=https://www.livescore.com/pt/futebol/international/world-cup-2026/results/`
+- `LIVESCORE_STANDINGS_URL=https://www.livescore.com/pt/futebol/international/world-cup-2026/standings/`
 
 Para trocar a API de live score, altere `LIVE_SCORE_PROVIDER`. A aplicação usa um
 contrato interno comum de fixtures normalizados, então rotas, scoring e cron não precisam
 conhecer detalhes do provedor. O contador diário em Firestore registra apenas chamadas da
 API-Football.
+
+O provider `livescore` usa as páginas públicas da Copa 2026 no LiveScore para descobrir o
+`buildId` atual do Next.js e consumir os JSONs `/_next/data/.../fixtures.json` e
+`/_next/data/.../results.json`; se esses JSONs falharem, tenta usar o `__NEXT_DATA__`
+embutido no HTML. A tabela vem do endpoint público `leagueTable`. Ele nao requer chave e
+nao consome quota da API-Football.
 
 ### Sincronizacao automatica
 

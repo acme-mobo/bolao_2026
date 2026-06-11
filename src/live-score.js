@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { HttpError } from './errors.js';
 import { ApiFootballClient } from './api-football.js';
+import { LiveScoreClient } from './livescore.js';
 
 const statusMap = {
   SCHEDULED: 'scheduled',
@@ -132,12 +133,49 @@ export class ApiFootballLiveScoreProvider {
   async fetchLiveFixtures() {
     return this.client.fetchLiveFixtures();
   }
+
+  async fetchStandings() {
+    return this.client.fetchStandings();
+  }
+}
+
+export class LiveScoreLiveScoreProvider {
+  constructor(options = {}) {
+    this.client = options.client ?? new LiveScoreClient(options);
+    this.quotaBucket = null;
+  }
+
+  get requestCount() {
+    return this.client.requestCount;
+  }
+
+  get configured() {
+    return this.client.configured;
+  }
+
+  getStatus() {
+    return {
+      provider: 'livescore',
+      configured: this.configured,
+      fixturesUrl: this.client.fixturesUrl,
+      quotaBucket: this.quotaBucket,
+    };
+  }
+
+  async fetchLiveFixtures() {
+    return this.client.fetchLiveFixtures();
+  }
+
+  async fetchStandings() {
+    return this.client.fetchStandings();
+  }
 }
 
 export function createLiveScoreProvider(options = {}) {
   const provider = options.provider ?? config.liveScoreProvider;
   if (provider === 'api-football') return new ApiFootballLiveScoreProvider(options);
   if (provider === 'football-data') return new FootballDataLiveScoreProvider(options);
+  if (provider === 'livescore') return new LiveScoreLiveScoreProvider(options);
   throw new Error(`LIVE_SCORE_PROVIDER invalido: ${provider}`);
 }
 

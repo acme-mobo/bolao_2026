@@ -25,6 +25,11 @@ export const config = {
   liveScoreProvider: (process.env.LIVE_SCORE_PROVIDER ?? 'api-football').toLowerCase(),
   liveScoreCompetitionCode: process.env.LIVE_SCORE_COMPETITION_CODE ?? 'WC',
   liveScoreSeason: Number(process.env.LIVE_SCORE_SEASON ?? 2026),
+  livescoreFixturesUrl: process.env.LIVESCORE_FIXTURES_URL ?? 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
+  livescoreResultsUrl: process.env.LIVESCORE_RESULTS_URL ?? 'https://www.livescore.com/pt/futebol/international/world-cup-2026/results/',
+  livescoreStandingsUrl: process.env.LIVESCORE_STANDINGS_URL ?? 'https://www.livescore.com/pt/futebol/international/world-cup-2026/standings/',
+  livescorePublicApiUrl: process.env.LIVESCORE_PUBLIC_API_URL ?? 'https://prod-cdn-public-api.livescore.com',
+  livescoreCompetitionId: process.env.LIVESCORE_COMPETITION_ID ?? '734',
   // API-Football (api-sports.io)
   apiFootballKey: process.env.API_FOOTBALL_KEY ?? '',
   apiFootballLeagueId: Number(process.env.API_FOOTBALL_LEAGUE_ID ?? 1),

@@ -5,6 +5,8 @@ import {
   buildSyncResponse,
   getApiFootballDailyBudget,
   getApiFootballCapabilities,
+  getDailySyncSource,
+  getStandingsSyncSource,
   getLocalFixturesForDate,
   shouldTrackApiFootballQuota,
   hasApiFootballBudget,
@@ -42,6 +44,77 @@ test('quota diaria rastreia apenas fontes API-Football', () => {
   assert.equal(shouldTrackApiFootballQuota({ quotaBucket: 'api-football' }), true);
   assert.equal(shouldTrackApiFootballQuota({ quotaBucket: null }), false);
   assert.equal(shouldTrackApiFootballQuota({}), true);
+});
+
+test('daily usa provider sem quota API-Football quando configurado', () => {
+  const client = { configured: true };
+  const liveProvider = {
+    configured: true,
+    quotaBucket: null,
+    getStatus() {
+      return { provider: 'livescore' };
+    },
+  };
+
+  const source = getDailySyncSource(client, liveProvider);
+
+  assert.equal(source.type, 'live-provider');
+  assert.equal(source.source, liveProvider);
+  assert.equal(source.provider, 'livescore');
+  assert.equal(source.tracksApiFootball, false);
+});
+
+test('daily mantem API-Football quando live provider tambem usa API-Football', () => {
+  const client = { configured: true };
+  const liveProvider = {
+    configured: true,
+    quotaBucket: 'api-football',
+    getStatus() {
+      return { provider: 'api-football' };
+    },
+  };
+
+  const source = getDailySyncSource(client, liveProvider);
+
+  assert.equal(source.type, 'api-football');
+  assert.equal(source.source, client);
+  assert.equal(source.provider, 'api-football');
+  assert.equal(source.tracksApiFootball, true);
+});
+
+test('standings usa provider sem quota quando ele suporta tabela', () => {
+  const client = { configured: true };
+  const liveProvider = {
+    configured: true,
+    quotaBucket: null,
+    fetchStandings() {},
+    getStatus() {
+      return { provider: 'livescore' };
+    },
+  };
+
+  const source = getStandingsSyncSource(client, liveProvider);
+
+  assert.equal(source.source, liveProvider);
+  assert.equal(source.provider, 'livescore');
+  assert.equal(source.tracksApiFootball, false);
+});
+
+test('standings volta para API-Football quando provider nao suporta tabela', () => {
+  const client = { configured: true };
+  const liveProvider = {
+    configured: true,
+    quotaBucket: null,
+    getStatus() {
+      return { provider: 'football-data.org' };
+    },
+  };
+
+  const source = getStandingsSyncSource(client, liveProvider);
+
+  assert.equal(source.source, client);
+  assert.equal(source.provider, 'api-football');
+  assert.equal(source.tracksApiFootball, true);
 });
 
 test('budget diario conservador limita chamadas antes do limite real', () => {

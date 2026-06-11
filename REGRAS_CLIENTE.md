@@ -274,10 +274,11 @@ Regras de UX:
 
 Provider atual:
 
-- Configuravel por `LIVE_SCORE_PROVIDER=api-football|football-data`
+- Configuravel por `LIVE_SCORE_PROVIDER=api-football|football-data|livescore`
 - Padrao: `api-football`
 - Competicao padrao: `WC`
 - Temporada padrao: `2026`
+- LiveScore usa `LIVESCORE_FIXTURES_URL`, `LIVESCORE_RESULTS_URL` e `LIVESCORE_STANDINGS_URL`, e nao requer chave.
 
 Regras:
 

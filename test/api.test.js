@@ -156,6 +156,54 @@ test('summary agrega partidas pela data local de Sao Paulo', async () => {
   assert.deepEqual(all.body.matches.map((match) => match.matchNumber), [1, 2, 3]);
 });
 
+test('groups inclui tabela quando standings foram sincronizados', async () => {
+  const api = await createApi();
+  await api.store.transaction((db) => {
+    db.teams = worldCup2026Teams.slice(0, 2).map(([name, code, group]) => ({ id: `team_${code}`, name, code, group }));
+    db.matches = [];
+    db.standings = [
+      {
+        id: 'A_9025',
+        group: 'A',
+        rank: 2,
+        teamId: '9025',
+        teamCode: 'MEX',
+        teamName: 'México',
+        points: 4,
+        played: 2,
+        won: 1,
+        drawn: 1,
+        lost: 0,
+        goalsFor: 3,
+        goalsAgainst: 1,
+        goalsDiff: 2,
+      },
+      {
+        id: 'A_9287',
+        group: 'A',
+        rank: 1,
+        teamId: '9287',
+        teamCode: 'RSA',
+        teamName: 'África do Sul',
+        points: 6,
+        played: 2,
+        won: 2,
+        drawn: 0,
+        lost: 0,
+        goalsFor: 4,
+        goalsAgainst: 1,
+        goalsDiff: 3,
+      },
+    ];
+  });
+
+  const response = await request(api, '/groups');
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body.groups[0].table.map((team) => team.teamCode), ['RSA', 'MEX']);
+  assert.equal(response.body.groups[0].table[0].points, 6);
+});
+
 test('sincroniza resultado via provider de live score', async () => {
   const fakeProvider = {
     getStatus() {

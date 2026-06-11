@@ -49,11 +49,21 @@ function ensureActivePool(db, user) {
 }
 
 function buildGroups(db) {
+  const standingsByGroup = new Map();
+  for (const standing of db.standings ?? []) {
+    if (!standing.group) continue;
+    const groupStandings = standingsByGroup.get(standing.group) ?? [];
+    groupStandings.push(standing);
+    standingsByGroup.set(standing.group, groupStandings);
+  }
+
   return [...new Set(db.teams.map((team) => team.group).filter(Boolean))]
     .sort()
     .map((group) => ({
       group,
       teams: db.teams.filter((team) => team.group === group),
+      table: (standingsByGroup.get(group) ?? [])
+        .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)),
       matches: db.matches
         .filter((match) => match.group === group)
         .sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0)),

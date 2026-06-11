@@ -3,7 +3,7 @@ import path from 'node:path';
 import { config } from './config.js';
 import { getAdminFirestore } from './firebase-admin.js';
 
-const collections = ['users', 'teams', 'matches', 'pools', 'memberships', 'predictions'];
+const collections = ['users', 'teams', 'matches', 'pools', 'memberships', 'predictions', 'standings'];
 
 export const emptyDb = () => ({
   users: [],
@@ -12,6 +12,7 @@ export const emptyDb = () => ({
   pools: [],
   memberships: [],
   predictions: [],
+  standings: [],
 });
 
 function membershipId(membership) {
