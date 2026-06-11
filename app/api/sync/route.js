@@ -10,23 +10,29 @@ function authorized(request) {
   return request.headers.get('authorization') === `Bearer ${secret}`;
 }
 
+function syncJson(payload, init = {}) {
+  const headers = new Headers(init.headers);
+  headers.set('cache-control', 'no-store, max-age=0');
+  return Response.json(payload, { ...init, headers });
+}
+
 // GET /api/sync — status atual (usado pelo cron e pelo admin)
 export async function GET(request) {
   if (!authorized(request)) {
-    return Response.json({ error: 'Não autorizado' }, { status: 401 });
+    return syncJson({ error: 'Não autorizado' }, { status: 401 });
   }
   try {
     const status = await getSyncStatus();
-    return Response.json(status);
+    return syncJson(status);
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return syncJson({ error: err.message }, { status: 500 });
   }
 }
 
 // POST /api/sync — dispara sincronização (chamado pelo cron ou manualmente)
 export async function POST(request) {
   if (!authorized(request)) {
-    return Response.json({ error: 'Não autorizado' }, { status: 401 });
+    return syncJson({ error: 'Não autorizado' }, { status: 401 });
   }
   try {
     const url = new URL(request.url);
@@ -34,8 +40,8 @@ export async function POST(request) {
       || request.headers.get('x-sync-verbose') === '1';
     const providerStatus = createLiveScoreProvider().getStatus();
     const result = await orchestrate();
-    return Response.json(verbose ? result : buildCompactSyncResponse(result, providerStatus));
+    return syncJson(verbose ? result : buildCompactSyncResponse(result, providerStatus));
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return syncJson({ error: err.message }, { status: 500 });
   }
 }

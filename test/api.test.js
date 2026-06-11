@@ -46,6 +46,7 @@ async function request(api, path, options = {}) {
 
   return {
     status: response.statusCode,
+    headers: response.headers,
     body: response.payload ? JSON.parse(response.payload) : undefined,
   };
 }
@@ -71,6 +72,15 @@ test('registra, cria bolao e lista leaderboard', async () => {
   });
   assert.equal(result.status, 200);
   assert.equal(result.body.leaderboard[0].name, 'Vagner');
+});
+
+test('respostas da API interna nao ficam em cache', async () => {
+  const api = await createApi();
+
+  const result = await request(api, '/teams');
+
+  assert.equal(result.status, 200);
+  assert.equal(result.headers['cache-control'], 'no-store, max-age=0');
 });
 
 test('retorna bolao ativo e inclui usuario automaticamente', async () => {
