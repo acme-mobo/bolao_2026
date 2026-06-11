@@ -106,6 +106,48 @@ test('applyLiveFixturesToDb atualiza partida local com fixture do LiveScore', ()
   assert.equal(db.matches[0].externalProvider, 'livescore');
 });
 
+test('applyLiveFixturesToDb atualiza partida por externalMatchId quando siglas nao batem', () => {
+  const db = {
+    teams: [
+      { id: 'team_MEX', code: 'XXX' },
+      { id: 'team_RSA', code: 'YYY' },
+    ],
+    matches: [
+      {
+        id: 'match_1',
+        matchNumber: 1,
+        homeTeamId: 'team_MEX',
+        awayTeamId: 'team_RSA',
+        externalMatchId: '1417909',
+        status: 'scheduled',
+        homeGoals: null,
+        awayGoals: null,
+      },
+    ],
+  };
+
+  const result = applyLiveFixturesToDb(
+    db,
+    [
+      {
+        externalId: '1417909',
+        status: 'live',
+        homeCode: 'MEX',
+        awayCode: 'RSA',
+        homeGoals: 0,
+        awayGoals: 0,
+        updatedAt: '2026-06-11T19:05:00.000Z',
+      },
+    ],
+    { provider: 'livescore', configured: true },
+  );
+
+  assert.equal(result.updated, 1);
+  assert.equal(db.matches[0].status, 'live');
+  assert.equal(db.matches[0].homeGoals, 0);
+  assert.equal(db.matches[0].awayGoals, 0);
+});
+
 test('FootballDataLiveScoreProvider normaliza fixtures para contrato comum', async () => {
   globalThis.fetch = async () => jsonResponse({
     matches: [

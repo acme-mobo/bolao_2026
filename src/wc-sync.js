@@ -363,10 +363,10 @@ async function bridgeToBolaoDB(fixtures, providerName = 'api-football') {
   for (const local of db.matches) {
     const home = teamsById.get(local.homeTeamId);
     const away = teamsById.get(local.awayTeamId);
-    if (!home || !away) continue;
 
     const remote = fixtures.find(
-      (f) => f.homeCode === home.code && f.awayCode === away.code,
+      (f) => (local.externalMatchId && String(local.externalMatchId) === String(f.externalId ?? f.fixtureId))
+        || (home?.code === f.homeCode && away?.code === f.awayCode),
     );
     if (!remote) continue;
 

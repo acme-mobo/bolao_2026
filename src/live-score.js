@@ -180,6 +180,10 @@ export function createLiveScoreProvider(options = {}) {
 }
 
 function sameFixture(localMatch, remoteMatch, teamsById) {
+  if (localMatch.externalMatchId && String(localMatch.externalMatchId) === externalIdFor(remoteMatch)) {
+    return true;
+  }
+
   const home = teamsById.get(localMatch.homeTeamId);
   const away = teamsById.get(localMatch.awayTeamId);
   return home?.code === remoteMatch.homeCode && away?.code === remoteMatch.awayCode;
