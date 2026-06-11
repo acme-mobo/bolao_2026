@@ -13,6 +13,7 @@ import {
   hasApiFootballBudget,
   hasKnownTodayMatches,
   isInsideLiveWindow,
+  shouldRunLiveSync,
 } from '../src/wc-sync.js';
 import { config } from '../src/config.js';
 
@@ -152,6 +153,28 @@ test('janela de live considera uma hora antes ate tres horas depois', () => {
 
 test('janela de live ignora dias sem jogo conhecido', () => {
   assert.equal(isInsideLiveWindow([], new Date('2026-06-11T19:00:00.000Z')), false);
+});
+
+test('force permite rodar live mesmo com lastLive fresco', () => {
+  const recent = new Date().toISOString();
+
+  assert.equal(shouldRunLiveSync({
+    force: false,
+    liveInterval: 10,
+    lastLive: recent,
+    hasMatchesToday: true,
+    hasLiveNow: false,
+    insideLiveWindow: true,
+  }), false);
+
+  assert.equal(shouldRunLiveSync({
+    force: true,
+    liveInterval: 10,
+    lastLive: recent,
+    hasMatchesToday: true,
+    hasLiveNow: false,
+    insideLiveWindow: true,
+  }), true);
 });
 
 test('buildSyncLogEntry monta log resumido sem payload bruto', () => {

@@ -38,8 +38,10 @@ export async function POST(request) {
     const url = new URL(request.url);
     const verbose = url.searchParams.get('verbose') === '1'
       || request.headers.get('x-sync-verbose') === '1';
+    const force = url.searchParams.get('force') === '1'
+      || request.headers.get('x-sync-force') === '1';
     const providerStatus = createLiveScoreProvider().getStatus();
-    const result = await orchestrate();
+    const result = await orchestrate({ force });
     return syncJson(verbose ? result : buildCompactSyncResponse(result, providerStatus));
   } catch (err) {
     return syncJson({ error: err.message }, { status: 500 });

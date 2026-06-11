@@ -534,8 +534,16 @@ export function getStandingsSyncSource(client, liveProvider) {
   };
 }
 
+export function shouldRunLiveSync({ force = false, liveInterval, lastLive, hasMatchesToday, hasLiveNow, insideLiveWindow }) {
+  return liveInterval !== null
+    && (force || minutesSince(lastLive) > liveInterval)
+    && hasMatchesToday
+    && (hasLiveNow || insideLiveWindow);
+}
+
 // ─── Orquestrador principal ───────────────────────────
-export async function orchestrate() {
+export async function orchestrate(options = {}) {
+  const force = options.force === true;
   const startedAt = new Date().toISOString();
   const globalLocked = await acquireLock('sync');
   if (!globalLocked) {
@@ -677,10 +685,14 @@ export async function orchestrate() {
   }
 
   const liveInterval = intervalFor('live', mode);
-  const shouldSyncLive = liveInterval !== null
-    && minutesSince(status.lastLive) > liveInterval
-    && hasMatchesToday
-    && (hasLiveNow || insideLiveWindow);
+  const shouldSyncLive = shouldRunLiveSync({
+    force,
+    liveInterval,
+    lastLive: status.lastLive,
+    hasMatchesToday,
+    hasLiveNow,
+    insideLiveWindow,
+  });
   if (shouldSyncLive) {
     if (liveProvider.configured) {
       const tracksApiFootball = shouldTrackApiFootballQuota(liveProvider);
@@ -693,7 +705,7 @@ export async function orchestrate() {
     } else {
       skipped.push({ op: 'live', skipped: true, reason: `${liveProvider.getStatus().provider} não configurado` });
     }
-  } else if (liveInterval !== null && minutesSince(status.lastLive) > liveInterval) {
+  } else if (liveInterval !== null && (force || minutesSince(status.lastLive) > liveInterval)) {
     skipped.push({
       op: 'live',
       skipped: true,
