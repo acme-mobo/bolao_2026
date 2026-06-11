@@ -9,6 +9,8 @@ const LIVE_STATUSES = new Set(['LIVE', 'IN_PLAY', 'PLAYING', 'HT', 'PAUSED']);
 const FINISHED_STATUSES = new Set(['FINISHED', 'ENDED', 'FT', 'AFTER_PEN', 'AFTER_EXTRA_TIME']);
 const CANCELLED_STATUSES = new Set(['CANCELLED', 'CANCELED', 'ABANDONED', 'SUSPENDED']);
 const POSTPONED_STATUSES = new Set(['POSTPONED', 'DELAYED']);
+const DATE_API_LIVE_STATUSES = new Set([2, 3, 4, 5]);
+const DATE_API_FINISHED_STATUSES = new Set([6, 7, 8, 9]);
 
 const livescoreCodeOverrides = new Map([
   ['CZECHIA', 'CZE'],
@@ -101,6 +103,16 @@ function normalizeStatus(event) {
   return 'scheduled';
 }
 
+function normalizeDateApiStatus(event) {
+  const statusId = Number(event.Esid);
+  const statusText = String(event.Eps ?? '').toUpperCase();
+
+  if (DATE_API_FINISHED_STATUSES.has(statusId) || ['FT', 'AET', 'AP', 'PEN'].includes(statusText)) return 'finished';
+  if (DATE_API_LIVE_STATUSES.has(statusId) || statusText.includes("'") || event.Etm?.RTm) return 'live';
+  if (['POSTP', 'PST', 'CAN', 'ABD', 'SUSP'].includes(statusText)) return statusText === 'CAN' ? 'cancelled' : 'scheduled';
+  return 'scheduled';
+}
+
 function extractGroup(stageName) {
   return stageName?.replace(/^Group\s+/i, '').trim() || null;
 }
@@ -134,9 +146,58 @@ export function normalizeLiveScoreEvent(event) {
   };
 }
 
+function firstTeam(teamList) {
+  return Array.isArray(teamList) ? teamList[0] ?? {} : {};
+}
+
+export function normalizeLiveScoreDateEvent(event, stage = {}) {
+  const homeTeam = firstTeam(event.T1);
+  const awayTeam = firstTeam(event.T2);
+  const homeGoals = parseScore(event.Tr1 ?? event.Trh1);
+  const awayGoals = parseScore(event.Tr2 ?? event.Trh2);
+  const status = normalizeDateApiStatus(event);
+
+  return {
+    externalId: String(event.Eid),
+    fixtureId: String(event.Eid),
+    date: parseLiveScoreDate(event.Esd),
+    statusShort: event.Eps ?? null,
+    statusElapsed: event.Etm?.RTm ?? null,
+    status,
+    round: null,
+    group: extractGroup(stage.Snm ?? stage.Sdn),
+    venue: null,
+    city: null,
+    homeCode: homeTeam.Abr ?? codeForTeam(homeTeam) ?? null,
+    awayCode: awayTeam.Abr ?? codeForTeam(awayTeam) ?? null,
+    homeName: homeTeam.NmEn ?? homeTeam.Nm ?? homeTeam.Tnm ?? '',
+    awayName: awayTeam.NmEn ?? awayTeam.Nm ?? awayTeam.Tnm ?? '',
+    homeLogo: homeTeam.Img ?? null,
+    awayLogo: awayTeam.Img ?? null,
+    homeGoals,
+    awayGoals,
+    rawStatus: event.Eps ?? event.Esid ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function collectEvents(payload) {
   return (payload?.pageProps?.initialData?.sections ?? [])
     .flatMap((section) => section.events ?? []);
+}
+
+function collectDateKeys(events) {
+  return [...new Set(
+    events
+      .map((event) => String(event?.startDateTimeString ?? '').slice(0, 8))
+      .filter((value) => /^\d{8}$/.test(value)),
+  )];
+}
+
+function collectDateApiFixtures(payload, competitionId) {
+  return (payload?.Stages ?? [])
+    .filter((stage) => !competitionId || String(stage.CompId) === String(competitionId))
+    .flatMap((stage) => (stage.Events ?? []).map((event) => normalizeLiveScoreDateEvent(event, stage)));
 }
 
 function extractNextData(html) {
@@ -251,8 +312,34 @@ export class LiveScoreClient {
       // Fixtures alone are enough for scheduled/live games; results are a best-effort enrichment.
     }
 
-    const byId = new Map(events.filter((event) => event?.id).map((event) => [String(event.id), event]));
-    return [...byId.values()].map(normalizeLiveScoreEvent);
+    const byId = new Map(events.filter((event) => event?.id).map((event) => [String(event.id), normalizeLiveScoreEvent(event)]));
+
+    for (const dateKey of collectDateKeys(events)) {
+      try {
+        const dateFixtures = await this.fetchDateFixtures(dateKey);
+        for (const fixture of dateFixtures) {
+          if (byId.has(fixture.externalId)) byId.set(fixture.externalId, fixture);
+        }
+      } catch {
+        // The public date API is an enrichment for live score freshness; Next data remains the fallback.
+      }
+    }
+
+    return [...byId.values()];
+  }
+
+  async fetchDateFixtures(dateKey) {
+    if (!this.publicApiUrl) return [];
+    const url = new URL(`/v1/api/app/date/soccer/${dateKey}/0`, this.publicApiUrl);
+    url.searchParams.set('locale', this.locale);
+
+    const response = await fetch(url, { headers: { accept: 'application/json' } });
+    this.requestCount++;
+    if (!response.ok) {
+      throw new HttpError(response.status, 'Falha ao consultar data LiveScore', await response.text());
+    }
+
+    return collectDateApiFixtures(await response.json(), this.competitionId);
   }
 
   async fetchResultFixtures() {
