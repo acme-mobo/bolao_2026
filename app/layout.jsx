@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Bolão STI 2026',
+  title: 'Bolão 2026',
   description: 'Bolão da Copa do Mundo FIFA 2026',
 };
 

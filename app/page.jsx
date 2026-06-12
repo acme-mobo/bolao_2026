@@ -884,7 +884,7 @@ export default function HomePage() {
           <div className="authCard">
             <div className="authHeader">
               <div className="authLogo">B</div>
-              <h2>Bolão STI 2026</h2>
+              <h2>Bolão 2026</h2>
               <p>Restaurando sessão…</p>
             </div>
             <div className="predsLoading">Carregando dados do usuário…</div>
@@ -908,7 +908,7 @@ export default function HomePage() {
         <div className="topbarLogo">
           <div className="logo">B</div>
           <div>
-            <h1>Bolão STI 2026</h1>
+            <h1>Bolão 2026</h1>
             <p>Copa do Mundo FIFA 2026</p>
           </div>
         </div>
@@ -928,7 +928,7 @@ export default function HomePage() {
           <div className="authCard">
             <div className="authHeader">
               <div className="authLogo">B</div>
-              <h2>Bolão STI 2026</h2>
+              <h2>Bolão 2026</h2>
               <p>Copa do Mundo FIFA 2026</p>
             </div>
             <div className="authBody">
