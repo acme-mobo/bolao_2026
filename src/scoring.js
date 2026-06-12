@@ -50,6 +50,7 @@ export function buildLeaderboard(db, poolId) {
       return {
         userId: membership.userId,
         name: user?.name ?? 'Usuario removido',
+        username: user?.username ?? null,
         predictions: predictions.length,
         points,
         exactCount,

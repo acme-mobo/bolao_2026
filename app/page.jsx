@@ -1396,7 +1396,10 @@ export default function HomePage() {
                   {leaderboard.map((row, i) => (
                     <li key={row.userId} className={row.userId === profile?.id ? 'me' : ''}>
                       <RankPosition index={i} />
-                      <span className="rankName">{row.name}</span>
+                      <span className="rankPlayer">
+                        <span className="rankName">{row.name}</span>
+                        {row.username && <span className="rankUsername">@{row.username}</span>}
+                      </span>
                       <span className="rankPoints">{row.points}</span>
                       <span className="rankStat">{row.exactCount ?? 0}</span>
                       <span className="rankStat">{row.correctOutcomeCount ?? 0}</span>
