@@ -1436,6 +1436,7 @@ button { cursor: pointer; border: 0; }
   min-width: 0;
   color: var(--muted);
   font-size: 10.5px;
+  font-style: italic;
   font-weight: 500;
   line-height: 1.15;
   overflow: hidden;
