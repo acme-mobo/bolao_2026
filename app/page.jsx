@@ -32,6 +32,40 @@ async function api(path, token, options = {}) {
   return body;
 }
 
+const SESSION_CACHE_KEY = 'bolao26.sessionSnapshot';
+
+function readSessionSnapshot() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionSnapshot(snapshot) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Session cache is only a UI convenience; auth state remains owned by Firebase.
+  }
+}
+
+function clearSessionSnapshot() {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(SESSION_CACHE_KEY);
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function replaceIfChanged(setter, nextValue) {
+  setter((currentValue) => (sameJson(currentValue, nextValue) ? currentValue : nextValue));
+}
+
 // ─── Flag emoji by FIFA code ─────────────────────────
 const FLAG_BY_CODE = {
   MEX: '🇲🇽', RSA: '🇿🇦', KOR: '🇰🇷', CZE: '🇨🇿',
@@ -227,10 +261,12 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
   const hasScore = match.homeGoals != null && match.awayGoals != null;
   const scoreFirst = variant === 'score';
   const isSaved = savedMatches.has(match.id);
+  const canEditPrediction = !locked && Boolean(selectedPoolId && token);
   const countdown = (urgency === 'urgent' || urgency === 'warning')
     ? formatCountdown(match, now) : null;
 
   function handleDeleteConfirm() {
+    if (!token) return;
     onDeletePrediction(match.id);
     setConfirmDelete(false);
   }
@@ -285,14 +321,14 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
             <div className="scoreInputs">
               <Stepper value={draft.homeGoals}
                 onChange={(v) => onUpdateDraft(match.id, 'homeGoals', v)}
-                disabled={locked} label={`Gols ${home?.name}`} />
+                disabled={!canEditPrediction} label={`Gols ${home?.name}`} />
               <span className="scoreSep">×</span>
               <Stepper value={draft.awayGoals}
                 onChange={(v) => onUpdateDraft(match.id, 'awayGoals', v)}
-                disabled={locked} label={`Gols ${away?.name}`} />
+                disabled={!canEditPrediction} label={`Gols ${away?.name}`} />
               <button
                 className={`btnSave${isSaved ? ' saved' : ''}`}
-                disabled={locked || !selectedPoolId}
+                disabled={!canEditPrediction}
                 onClick={() => onSave(match.id)}
                 aria-label="Salvar palpite"
                 title="Salvar palpite"
@@ -325,7 +361,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
                 <span className={`savedInfo${scoreFirst ? ' secondaryTip' : ''}`}>
                   {scoreFirst ? 'Seu palpite ' : ''}{prediction.homeGoals} × {prediction.awayGoals}
                 </span>
-                {!locked && !scoreFirst && (
+                {canEditPrediction && !scoreFirst && (
                   <button
                     className="btnDeletePred"
                     onClick={() => setConfirmDelete(true)}
@@ -370,31 +406,33 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
 
 // ─── Main page ────────────────────────────────────────
 export default function HomePage() {
+  const [sessionSnapshot, setSessionSnapshot] = useState(() => readSessionSnapshot());
+
   // Auth
   const [authMode, setAuthMode]   = useState('login');
   const [authForm, setAuthForm]   = useState({ name: '', email: '', password: '' });
-  const [user, setUser]           = useState(null);
-  const [profile, setProfile]     = useState(null);
+  const [user, setUser]           = useState(() => sessionSnapshot?.user ?? null);
+  const [profile, setProfile]     = useState(() => sessionSnapshot?.profile ?? null);
   const [token, setToken]         = useState('');
   const [authReady, setAuthReady] = useState(false);
 
   // Data
-  const [groups, setGroups]       = useState([]);
-  const [teams, setTeams]         = useState([]);
-  const [matches, setMatches]     = useState([]);
-  const [activePool, setActivePool]   = useState(null);
-  const [selectedPoolId, setSelectedPoolId] = useState('');
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [predictions, setPredictions] = useState([]);
-  const [predictionDrafts, setPredictionDrafts] = useState({});
-  const [predictionsReady, setPredictionsReady] = useState(false);
+  const [groups, setGroups]       = useState(() => sessionSnapshot?.groups ?? []);
+  const [teams, setTeams]         = useState(() => sessionSnapshot?.teams ?? []);
+  const [matches, setMatches]     = useState(() => sessionSnapshot?.matches ?? []);
+  const [activePool, setActivePool]   = useState(() => sessionSnapshot?.activePool ?? null);
+  const [selectedPoolId, setSelectedPoolId] = useState(() => sessionSnapshot?.selectedPoolId ?? '');
+  const [leaderboard, setLeaderboard] = useState(() => sessionSnapshot?.leaderboard ?? []);
+  const [predictions, setPredictions] = useState(() => sessionSnapshot?.predictions ?? []);
+  const [predictionDrafts, setPredictionDrafts] = useState(() => sessionSnapshot?.predictionDrafts ?? {});
+  const [predictionsReady, setPredictionsReady] = useState(() => Boolean(sessionSnapshot?.predictionsReady));
 
   // UI state
   const [theme, setTheme]         = useState('dark');
-  const [sectionMode, setSectionMode] = useState('predictions'); // predictions | today | results
-  const [navMode, setNavMode]     = useState('pending'); // group | date | pending
-  const [resultsMode, setResultsMode] = useState('date'); // group | date
-  const [matchFilter, setMatchFilter] = useState('all'); // all | pending
+  const [sectionMode, setSectionMode] = useState(() => sessionSnapshot?.ui?.sectionMode ?? 'predictions'); // predictions | today | results
+  const [navMode, setNavMode]     = useState(() => sessionSnapshot?.ui?.navMode ?? 'pending'); // group | date | pending
+  const [resultsMode, setResultsMode] = useState(() => sessionSnapshot?.ui?.resultsMode ?? 'date'); // group | date
+  const [matchFilter, setMatchFilter] = useState(() => sessionSnapshot?.ui?.matchFilter ?? 'all'); // all | pending
   const [editingName, setEditingName]   = useState(false);
   const [nameInput, setNameInput]       = useState('');
   const [toasts, setToasts]             = useState([]);
@@ -438,9 +476,9 @@ export default function HomePage() {
   // ─── Data loaders ───────────────────────────────────
   const loadPublic = useCallback(async () => {
     const [gd, td, md] = await Promise.all([api('/groups'), api('/teams'), api('/matches')]);
-    setGroups(gd.groups);
-    setTeams(td.teams);
-    setMatches(md.matches);
+    replaceIfChanged(setGroups, gd.groups);
+    replaceIfChanged(setTeams, td.teams);
+    replaceIfChanged(setMatches, md.matches);
   }, []);
 
   const loadPoolData = useCallback(async (poolId = selectedPoolId, nextToken = token, options = {}) => {
@@ -450,14 +488,14 @@ export default function HomePage() {
       api(`/pools/${poolId}/leaderboard`, nextToken),
       api(`/pools/${poolId}/predictions`, nextToken),
     ]);
-    setLeaderboard(rankData.leaderboard);
-    setPredictions(predData.predictions);
+    replaceIfChanged(setLeaderboard, rankData.leaderboard);
+    replaceIfChanged(setPredictions, predData.predictions);
     setPredictionDrafts((current) => {
       const drafts = { ...current };
       for (const p of predData.predictions) {
         drafts[p.matchId] = { homeGoals: p.homeGoals, awayGoals: p.awayGoals };
       }
-      return drafts;
+      return sameJson(current, drafts) ? current : drafts;
     });
     setPredictionsReady(true);
   }, [selectedPoolId, token]);
@@ -485,6 +523,8 @@ export default function HomePage() {
           setLeaderboard([]); setPredictions([]);
           setPredictionsReady(false);
           setPredictionDrafts({});
+          clearSessionSnapshot();
+          setSessionSnapshot(null);
           initialSectionSetRef.current = false;
           userSelectedSectionRef.current = false;
           return;
@@ -507,12 +547,60 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!selectedPoolId || !token) return;
-    loadPoolData(selectedPoolId, token)
+    loadPoolData(selectedPoolId, token, { silent: predictionsReady })
       .catch((err) => {
         setPredictionsReady(true);
         addToast(err.message, 'error');
       });
-  }, [loadPoolData, selectedPoolId, token]);
+  }, [loadPoolData, selectedPoolId, token, predictionsReady]);
+
+  useEffect(() => {
+    if (!authReady || !user || !profile || !activePool || !selectedPoolId) return;
+
+    const snapshot = {
+      user: {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+      },
+      profile,
+      activePool,
+      selectedPoolId,
+      groups,
+      teams,
+      matches,
+      leaderboard,
+      predictions,
+      predictionDrafts,
+      predictionsReady,
+      ui: {
+        sectionMode,
+        navMode,
+        resultsMode,
+        matchFilter,
+      },
+      cachedAt: new Date().toISOString(),
+    };
+    writeSessionSnapshot(snapshot);
+    setSessionSnapshot(snapshot);
+  }, [
+    authReady,
+    user,
+    profile,
+    activePool,
+    selectedPoolId,
+    groups,
+    teams,
+    matches,
+    leaderboard,
+    predictions,
+    predictionDrafts,
+    predictionsReady,
+    sectionMode,
+    navMode,
+    resultsMode,
+    matchFilter,
+  ]);
 
   function selectSection(next) {
     userSelectedSectionRef.current = true;
@@ -558,6 +646,7 @@ export default function HomePage() {
 
   // ─── Profile name edit ──────────────────────────────
   function startEditName() {
+    if (!token) return;
     setNameInput(profile?.name ?? user?.displayName ?? '');
     setEditingName(true);
   }
@@ -783,7 +872,8 @@ export default function HomePage() {
   };
 
   // ─── Render ──────────────────────────────────────────
-  if (!authReady) {
+  const canRenderCachedSession = Boolean(sessionSnapshot?.user && user && profile && selectedPoolId);
+  if (!authReady && !canRenderCachedSession) {
     return (
       <main className="shell">
         <div className="authWrap">
@@ -939,6 +1029,7 @@ export default function HomePage() {
                   {' · '}
                   <button
                     className="dangerLink"
+                    disabled={!token}
                     onClick={() => { setDeleteConfirmEmail(''); setDeleteAccountModal(true); }}
                     title="Excluir conta permanentemente"
                   >
