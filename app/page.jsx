@@ -5,7 +5,7 @@ import {
   Clock, HelpCircle, LogOut, Moon, Pencil, Save, Shield, Sun,
   Trash2, Trophy, Users, X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
   getFirebaseAuth,
@@ -406,33 +406,33 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
 
 // ─── Main page ────────────────────────────────────────
 export default function HomePage() {
-  const [sessionSnapshot, setSessionSnapshot] = useState(() => readSessionSnapshot());
+  const [sessionSnapshot, setSessionSnapshot] = useState(null);
 
   // Auth
   const [authMode, setAuthMode]   = useState('login');
   const [authForm, setAuthForm]   = useState({ name: '', email: '', password: '' });
-  const [user, setUser]           = useState(() => sessionSnapshot?.user ?? null);
-  const [profile, setProfile]     = useState(() => sessionSnapshot?.profile ?? null);
+  const [user, setUser]           = useState(null);
+  const [profile, setProfile]     = useState(null);
   const [token, setToken]         = useState('');
   const [authReady, setAuthReady] = useState(false);
 
   // Data
-  const [groups, setGroups]       = useState(() => sessionSnapshot?.groups ?? []);
-  const [teams, setTeams]         = useState(() => sessionSnapshot?.teams ?? []);
-  const [matches, setMatches]     = useState(() => sessionSnapshot?.matches ?? []);
-  const [activePool, setActivePool]   = useState(() => sessionSnapshot?.activePool ?? null);
-  const [selectedPoolId, setSelectedPoolId] = useState(() => sessionSnapshot?.selectedPoolId ?? '');
-  const [leaderboard, setLeaderboard] = useState(() => sessionSnapshot?.leaderboard ?? []);
-  const [predictions, setPredictions] = useState(() => sessionSnapshot?.predictions ?? []);
-  const [predictionDrafts, setPredictionDrafts] = useState(() => sessionSnapshot?.predictionDrafts ?? {});
-  const [predictionsReady, setPredictionsReady] = useState(() => Boolean(sessionSnapshot?.predictionsReady));
+  const [groups, setGroups]       = useState([]);
+  const [teams, setTeams]         = useState([]);
+  const [matches, setMatches]     = useState([]);
+  const [activePool, setActivePool]   = useState(null);
+  const [selectedPoolId, setSelectedPoolId] = useState('');
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [predictions, setPredictions] = useState([]);
+  const [predictionDrafts, setPredictionDrafts] = useState({});
+  const [predictionsReady, setPredictionsReady] = useState(false);
 
   // UI state
   const [theme, setTheme]         = useState('dark');
-  const [sectionMode, setSectionMode] = useState(() => sessionSnapshot?.ui?.sectionMode ?? 'predictions'); // predictions | today | results
-  const [navMode, setNavMode]     = useState(() => sessionSnapshot?.ui?.navMode ?? 'pending'); // group | date | pending
-  const [resultsMode, setResultsMode] = useState(() => sessionSnapshot?.ui?.resultsMode ?? 'date'); // group | date
-  const [matchFilter, setMatchFilter] = useState(() => sessionSnapshot?.ui?.matchFilter ?? 'all'); // all | pending
+  const [sectionMode, setSectionMode] = useState('predictions'); // predictions | today | results
+  const [navMode, setNavMode]     = useState('pending'); // group | date | pending
+  const [resultsMode, setResultsMode] = useState('date'); // group | date
+  const [matchFilter, setMatchFilter] = useState('all'); // all | pending
   const [editingName, setEditingName]   = useState(false);
   const [nameInput, setNameInput]       = useState('');
   const [toasts, setToasts]             = useState([]);
@@ -441,10 +441,47 @@ export default function HomePage() {
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
   const [scoringModal, setScoringModal] = useState(false);
+  const [showSessionLoader, setShowSessionLoader] = useState(false);
   const toastIdRef = useRef(0);
   const initialSectionSetRef = useRef(false);
   const userSelectedSectionRef = useRef(false);
   const lastAutoRefreshRef = useRef(0);
+  const restoredSessionRef = useRef(false);
+  const explicitSignOutRef = useRef(false);
+
+  // ─── Session cache hydration ────────────────────────
+  useLayoutEffect(() => {
+    const snapshot = readSessionSnapshot();
+    if (!snapshot?.user) return;
+
+    restoredSessionRef.current = true;
+    setSessionSnapshot(snapshot);
+    setUser(snapshot.user);
+    setProfile(snapshot.profile ?? null);
+    setGroups(snapshot.groups ?? []);
+    setTeams(snapshot.teams ?? []);
+    setMatches(snapshot.matches ?? []);
+    setActivePool(snapshot.activePool ?? null);
+    setSelectedPoolId(snapshot.selectedPoolId ?? '');
+    setLeaderboard(snapshot.leaderboard ?? []);
+    setPredictions(snapshot.predictions ?? []);
+    setPredictionDrafts(snapshot.predictionDrafts ?? {});
+    setPredictionsReady(Boolean(snapshot.predictionsReady));
+    setSectionMode(snapshot.ui?.sectionMode ?? 'predictions');
+    setNavMode(snapshot.ui?.navMode ?? 'pending');
+    setResultsMode(snapshot.ui?.resultsMode ?? 'date');
+    setMatchFilter(snapshot.ui?.matchFilter ?? 'all');
+  }, []);
+
+  useEffect(() => {
+    if (authReady || sessionSnapshot?.user) {
+      setShowSessionLoader(false);
+      return undefined;
+    }
+
+    const id = setTimeout(() => setShowSessionLoader(true), 180);
+    return () => clearTimeout(id);
+  }, [authReady, sessionSnapshot?.user]);
 
   // ─── Theme persistence ──────────────────────────────
   useEffect(() => {
@@ -458,6 +495,13 @@ export default function HomePage() {
     setTheme(next);
     document.documentElement.dataset.theme = next;
     localStorage.setItem('theme', next);
+  }
+
+  async function handleSignOut() {
+    explicitSignOutRef.current = true;
+    clearSessionSnapshot();
+    setSessionSnapshot(null);
+    await signOut(getFirebaseAuth());
   }
 
   // ─── Clock tick for countdowns ──────────────────────
@@ -516,8 +560,12 @@ export default function HomePage() {
     const unsub = onAuthStateChanged(getFirebaseAuth(), async (nextUser) => {
       try {
         if (!active) return;
-        setUser(nextUser);
         if (!nextUser) {
+          if (restoredSessionRef.current && !explicitSignOutRef.current) {
+            setAuthReady(true);
+            return;
+          }
+          setUser(null);
           setToken(''); setProfile(null); setActivePool(null);
           setSelectedPoolId('');
           setLeaderboard([]); setPredictions([]);
@@ -529,6 +577,8 @@ export default function HomePage() {
           userSelectedSectionRef.current = false;
           return;
         }
+        explicitSignOutRef.current = false;
+        setUser(nextUser);
         const nextToken = await nextUser.getIdToken();
         if (!active) return;
         setToken(nextToken);
@@ -877,6 +927,10 @@ export default function HomePage() {
   // ─── Render ──────────────────────────────────────────
   const canRenderCachedSession = Boolean(sessionSnapshot?.user && user && profile && selectedPoolId);
   if (!authReady && !canRenderCachedSession) {
+    if (!showSessionLoader) {
+      return <main className="shell" aria-busy="true" />;
+    }
+
     return (
       <main className="shell">
         <div className="authWrap">
@@ -908,7 +962,7 @@ export default function HomePage() {
         <div className="topbarLogo">
           <div className="logo">B</div>
           <div>
-            <h1>Bolão 2026</h1>
+            <h1>Bolão STI 2026</h1>
             <p>Copa do Mundo FIFA 2026</p>
           </div>
         </div>
@@ -973,7 +1027,7 @@ export default function HomePage() {
 
           {/* ── Hero ─────────────────────────────────── */}
           <section className="heroPanel">
-            <div>
+            <div className="heroContent">
               <div className="heroMeta">
                 <span className="badge active">Bolão ativo</span>
                 {activePool?.inviteCode && (
@@ -986,7 +1040,7 @@ export default function HomePage() {
             <img src="/hero-banner.png" className="heroBanner" alt="" aria-hidden="true" />
             <div className="heroActions">
               <button className="btnIcon danger" title="Sair"
-                aria-label="Sair" onClick={() => signOut(getFirebaseAuth())}>
+                aria-label="Sair" onClick={handleSignOut}>
                 <LogOut size={17} />
               </button>
             </div>
@@ -994,8 +1048,8 @@ export default function HomePage() {
 
           {/* ── Account Summary ──────────────────────── */}
           <section className="summaryPanel">
-            <div className="summaryUser">
-              <div className="summaryIcon"><Shield size={15} /></div>
+            <div className="summaryUserCard">
+              <div className="summaryIcon"><Shield size={16} /></div>
               <div className="summaryUserText">
                 <span className="metricLabel">Jogador</span>
                 {editingName ? (
@@ -1027,9 +1081,8 @@ export default function HomePage() {
                     </button>
                   </div>
                 )}
-                <div className="metricSub">
-                  {profile?.role ?? 'player'}
-                  {' · '}
+                <div className="profileMetaRow">
+                  <span className="rolePill">{profile?.role ?? 'player'}</span>
                   <button
                     className="dangerLink"
                     disabled={!token}
