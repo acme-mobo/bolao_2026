@@ -376,6 +376,7 @@ export default function HomePage() {
   const [user, setUser]           = useState(null);
   const [profile, setProfile]     = useState(null);
   const [token, setToken]         = useState('');
+  const [authReady, setAuthReady] = useState(false);
 
   // Data
   const [groups, setGroups]       = useState([]);
@@ -473,23 +474,35 @@ export default function HomePage() {
 
   useEffect(() => {
     loadPublic().catch((err) => addToast(err.message, 'error'));
+    let active = true;
     const unsub = onAuthStateChanged(getFirebaseAuth(), async (nextUser) => {
-      setUser(nextUser);
-      if (!nextUser) {
-        setToken(''); setProfile(null); setActivePool(null);
-        setSelectedPoolId('');
-        setLeaderboard([]); setPredictions([]);
-        setPredictionsReady(false);
-        setPredictionDrafts({});
-        initialSectionSetRef.current = false;
-        userSelectedSectionRef.current = false;
-        return;
+      try {
+        if (!active) return;
+        setUser(nextUser);
+        if (!nextUser) {
+          setToken(''); setProfile(null); setActivePool(null);
+          setSelectedPoolId('');
+          setLeaderboard([]); setPredictions([]);
+          setPredictionsReady(false);
+          setPredictionDrafts({});
+          initialSectionSetRef.current = false;
+          userSelectedSectionRef.current = false;
+          return;
+        }
+        const nextToken = await nextUser.getIdToken();
+        if (!active) return;
+        setToken(nextToken);
+        await loadProtected(nextToken);
+      } catch (err) {
+        if (active) addToast(err.message, 'error');
+      } finally {
+        if (active) setAuthReady(true);
       }
-      const nextToken = await nextUser.getIdToken();
-      setToken(nextToken);
-      await loadProtected(nextToken);
     });
-    return unsub;
+    return () => {
+      active = false;
+      unsub();
+    };
   }, [loadPublic]);
 
   useEffect(() => {
@@ -629,8 +642,10 @@ export default function HomePage() {
 
   // ─── Derived data ────────────────────────────────────
   const myPoints = leaderboard.find((r) => r.userId === profile?.id)?.points ?? 0;
+  const predictionsLoading = Boolean(user && selectedPoolId && token && !predictionsReady);
 
   const pendingMatches = useMemo(() => {
+    if (!predictionsReady) return [];
     return [...matches]
       .filter((m) => {
         if (m.status === 'finished' || m.status === 'cancelled') return false;
@@ -638,20 +653,7 @@ export default function HomePage() {
         return !predictions.some((p) => p.matchId === m.id);
       })
       .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
-  }, [matches, predictions]);
-
-  useEffect(() => {
-    if (!token || !selectedPoolId || !matches.length || !predictionsReady) return;
-    if (initialSectionSetRef.current || userSelectedSectionRef.current) return;
-
-    if (pendingMatches.length > 0) {
-      setSectionMode('predictions');
-      setNavMode('pending');
-    } else {
-      setSectionMode('today');
-    }
-    initialSectionSetRef.current = true;
-  }, [token, selectedPoolId, matches.length, predictionsReady, pendingMatches.length]);
+  }, [matches, predictions, predictionsReady]);
 
   function isPendingMatch(m) {
     return m.status !== 'finished'
@@ -686,6 +688,26 @@ export default function HomePage() {
       .filter((m) => formatLocalDateKey(m.startsAt) === today)
       .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
   }, [matches, now]);
+
+  useEffect(() => {
+    if (!token || !selectedPoolId || !matches.length || !predictionsReady) return;
+    if (initialSectionSetRef.current || userSelectedSectionRef.current) return;
+
+    if (todayMatches.length > 0) {
+      setSectionMode('today');
+    } else {
+      setSectionMode('predictions');
+      setNavMode(pendingMatches.length > 0 ? 'pending' : 'date');
+    }
+    initialSectionSetRef.current = true;
+  }, [
+    token,
+    selectedPoolId,
+    matches.length,
+    predictionsReady,
+    todayMatches.length,
+    pendingMatches.length,
+  ]);
 
   const prioritizedTodayMatches = useMemo(() => {
     const urgencyOrder = { live: 0, urgent: 1, warning: 2, normal: 3, locked: 4, done: 5 };
@@ -761,6 +783,24 @@ export default function HomePage() {
   };
 
   // ─── Render ──────────────────────────────────────────
+  if (!authReady) {
+    return (
+      <main className="shell">
+        <div className="authWrap">
+          <img src="/hero-banner.png" className="authBanner" alt="" aria-hidden="true" />
+          <div className="authCard">
+            <div className="authHeader">
+              <div className="authLogo">B</div>
+              <h2>Bolão STI 2026</h2>
+              <p>Restaurando sessão…</p>
+            </div>
+            <div className="predsLoading">Carregando dados do usuário…</div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       {/* Toasts */}
@@ -918,20 +958,23 @@ export default function HomePage() {
                 <div className="summarySub">total acumulado</div>
               </div>
               <button
-                className={`summaryStat summaryAction${pendingMatches.length > 0 ? ' danger' : ''}`}
+                className={`summaryStat summaryAction${!predictionsLoading && pendingMatches.length > 0 ? ' danger' : ''}`}
                 onClick={selectPendingPredictions}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') selectPendingPredictions();
                 }}
-                title="Ver palpites pendentes"
+                disabled={predictionsLoading}
+                title={predictionsLoading ? 'Buscando palpites' : 'Ver palpites pendentes'}
               >
                 <div className="summaryStatHead">
                   <span className="metricLabel">Pendentes</span>
                   <CalendarDays size={14} />
                 </div>
-                <div className="summaryValue">{pendingMatches.length}</div>
+                <div className="summaryValue">{predictionsLoading ? '...' : pendingMatches.length}</div>
                 <div className="summarySub">
-                  {pendingMatches.length === 0
+                  {predictionsLoading
+                    ? 'buscando dados'
+                    : pendingMatches.length === 0
                     ? 'tudo em dia'
                     : `jogo${pendingMatches.length > 1 ? 's' : ''} sem palpite`}
                 </div>
@@ -952,7 +995,7 @@ export default function HomePage() {
                 className={sectionMode === 'predictions' ? 'active' : ''}
                 onClick={() => selectSection('predictions')}>
                 Palpites
-                {pendingMatches.length > 0 && (
+                {!predictionsLoading && pendingMatches.length > 0 && (
                   <span className="countBadge">{pendingMatches.length}</span>
                 )}
               </button>
@@ -988,7 +1031,7 @@ export default function HomePage() {
                   className={navMode === 'pending' ? 'active' : ''}
                   onClick={() => setNavMode('pending')}>
                 Pendentes
-                  {pendingMatches.length > 0 && (
+                  {!predictionsLoading && pendingMatches.length > 0 && (
                     <span className="countBadge">{pendingMatches.length}</span>
                   )}
                 </button>
@@ -1007,15 +1050,21 @@ export default function HomePage() {
                   className={matchFilter === 'pending' ? 'active' : ''}
                   onClick={() => setMatchFilter('pending')}>
                   Pendentes
-                  {pendingMatches.length > 0 && (
+                  {!predictionsLoading && pendingMatches.length > 0 && (
                     <span className="countBadge">{pendingMatches.length}</span>
                   )}
                 </button>
               </div>
             )}
 
+            {sectionMode === 'predictions' && predictionsLoading && (
+              <div className="matchList">
+                <div className="predsLoading">Buscando seus palpites...</div>
+              </div>
+            )}
+
             {/* ── Por Grupo ─────────────────────────── */}
-            {sectionMode === 'predictions' && navMode === 'group' && (
+            {sectionMode === 'predictions' && !predictionsLoading && navMode === 'group' && (
               <div className="matchList">
                 {groups.length === 0
                   ? <div className="emptyState">Nenhum jogo disponível.</div>
@@ -1041,7 +1090,7 @@ export default function HomePage() {
             )}
 
             {/* ── Por Data ──────────────────────────── */}
-            {sectionMode === 'predictions' && navMode === 'date' && (
+            {sectionMode === 'predictions' && !predictionsLoading && navMode === 'date' && (
               <div className="matchList">
                 {upcomingByDate.length === 0
                   ? <div className="emptyState">Sem jogos agendados.</div>
@@ -1066,7 +1115,7 @@ export default function HomePage() {
             )}
 
             {/* ── Pendentes ─────────────────────────── */}
-            {sectionMode === 'predictions' && navMode === 'pending' && (
+            {sectionMode === 'predictions' && !predictionsLoading && navMode === 'pending' && (
               <div className="matchList">
                 {pendingMatches.length === 0 ? (
                   <div className="allDoneState">
