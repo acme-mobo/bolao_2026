@@ -82,19 +82,31 @@ const FLAG_BY_CODE = {
   ENG: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', CRO: '🇭🇷', GHA: '🇬🇭', PAN: '🇵🇦',
 };
 
+const PREDICTION_LOCK_LEAD_MS = 5 * 60_000;
+
 // ─── Pure helpers ─────────────────────────────────────
 function teamById(teams, id) {
   return teams.find((t) => t.id === id);
 }
 
-function isMatchLocked(match) {
-  return match.lockAt ? Date.now() >= new Date(match.lockAt).getTime() : false;
+function predictionLockTime(match) {
+  const startsAtMs = new Date(match?.startsAt).getTime();
+  const lockAtMs = match?.lockAt ? new Date(match.lockAt).getTime() : Number.POSITIVE_INFINITY;
+  const fiveMinutesBeforeStart = Number.isNaN(startsAtMs)
+    ? Number.POSITIVE_INFINITY
+    : startsAtMs - PREDICTION_LOCK_LEAD_MS;
+
+  return Math.min(lockAtMs, fiveMinutesBeforeStart);
+}
+
+function isMatchLocked(match, nowMs = Date.now()) {
+  return predictionLockTime(match) <= nowMs;
 }
 
 function getUrgency(match, nowMs = Date.now()) {
   if (match.status === 'live') return 'live';
   if (match.status === 'finished' || match.status === 'cancelled') return 'done';
-  const lock = new Date(match.lockAt || match.startsAt).getTime();
+  const lock = predictionLockTime(match);
   const diff = lock - nowMs;
   if (diff <= 0) return 'locked';
   if (diff < 6 * 3600_000) return 'urgent';
@@ -103,7 +115,7 @@ function getUrgency(match, nowMs = Date.now()) {
 }
 
 function formatCountdown(match, nowMs = Date.now()) {
-  const lock = new Date(match.lockAt || match.startsAt).getTime();
+  const lock = predictionLockTime(match);
   const diff = lock - nowMs;
   if (diff <= 0) return null;
   const h = Math.floor(diff / 3_600_000);
@@ -247,7 +259,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
   selectedPoolId, token, myUserId, showGroup, urgency, now, variant = 'default',
   onUpdateDraft, onSave, onDeletePrediction }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [showPreds, setShowPreds] = useState(false);
+  const [showPreds, setShowPreds] = useState(match.status === 'live');
 
   const home = teamById(teams, match.homeTeamId);
   const away = teamById(teams, match.awayTeamId);
@@ -256,14 +268,19 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
     homeGoals: prediction?.homeGoals ?? 0,
     awayGoals: prediction?.awayGoals ?? 0,
   };
-  const locked = urgency === 'locked' || urgency === 'done';
+  const locked = urgency === 'locked' || urgency === 'done' || match.status === 'live';
   const isFinished = match.status === 'finished';
+  const canViewMatchPredictions = match.status === 'live' || isFinished;
   const hasScore = match.homeGoals != null && match.awayGoals != null;
   const scoreFirst = variant === 'score';
   const isSaved = savedMatches.has(match.id);
   const canEditPrediction = !locked && Boolean(selectedPoolId && token);
   const countdown = (urgency === 'urgent' || urgency === 'warning')
     ? formatCountdown(match, now) : null;
+
+  useEffect(() => {
+    if (match.status === 'live') setShowPreds(true);
+  }, [match.status]);
 
   function handleDeleteConfirm() {
     if (!token) return;
@@ -381,7 +398,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
         </div>
       </div>
 
-      {isFinished && (
+      {canViewMatchPredictions && (
         <div className="matchPredictionsWrap">
           <button
             className={`btnViewPreds${showPreds ? ' open' : ''}`}
@@ -791,16 +808,16 @@ export default function HomePage() {
     return [...matches]
       .filter((m) => {
         if (m.status === 'finished' || m.status === 'cancelled') return false;
-        if (isMatchLocked(m)) return false;
+        if (isMatchLocked(m, now)) return false;
         return !predictions.some((p) => p.matchId === m.id);
       })
       .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
-  }, [matches, predictions, predictionsReady]);
+  }, [matches, now, predictions, predictionsReady]);
 
   function isPendingMatch(m) {
     return m.status !== 'finished'
       && m.status !== 'cancelled'
-      && !isMatchLocked(m)
+      && !isMatchLocked(m, now)
       && !predictions.some((p) => p.matchId === m.id);
   }
 

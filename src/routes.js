@@ -3,7 +3,7 @@ import { assert } from './errors.js';
 import { newId } from './id.js';
 import { notFound, parseUrl, readJson, sanitizeUser, send } from './http.js';
 import { createLiveScoreProvider, syncLiveScores } from './live-score.js';
-import { findMatchByReference, predictionBelongsToMatch } from './match-reference.js';
+import { findMatchByReference, isPredictionOpen, predictionBelongsToMatch } from './match-reference.js';
 import { buildLeaderboard, scorePrediction } from './scoring.js';
 import { optionalDate, requireEmail, requireInteger, requireString } from './validation.js';
 
@@ -370,7 +370,7 @@ export function createRouter(store, options = {}) {
       );
       const match = findMatchByReference(db.matches, matchId);
       assert(match, 404, 'Jogo nao encontrado');
-      assert(new Date(match.lockAt).getTime() > Date.now(), 409, 'Palpites encerrados para este jogo');
+      assert(isPredictionOpen(match), 409, 'Palpites encerrados para este jogo');
 
       await store.transaction((currentDb) => {
         const currentMatch = findMatchByReference(currentDb.matches, matchId);
@@ -404,7 +404,7 @@ export function createRouter(store, options = {}) {
         );
         const match = findMatchByReference(currentDb.matches, matchId);
         assert(match, 404, 'Jogo nao encontrado');
-        assert(new Date(match.lockAt).getTime() > Date.now(), 409, 'Palpites encerrados para este jogo');
+        assert(isPredictionOpen(match), 409, 'Palpites encerrados para este jogo');
 
         const existing = currentDb.predictions.find(
           (candidate) => candidate.poolId === poolId
@@ -467,7 +467,11 @@ export function createRouter(store, options = {}) {
       );
       const match = findMatchByReference(db.matches, matchId);
       assert(match, 404, 'Jogo nao encontrado');
-      assert(match.status === 'finished', 403, 'Palpites visiveis somente apos encerramento do jogo');
+      assert(
+        match.status === 'live' || match.status === 'finished',
+        403,
+        'Palpites visiveis somente apos inicio do jogo',
+      );
 
       const predictions = db.predictions
         .filter((p) => p.poolId === poolId && predictionBelongsToMatch(p, match))
