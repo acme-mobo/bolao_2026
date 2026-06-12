@@ -563,6 +563,32 @@ button { cursor: pointer; border: 0; }
   font-variant-numeric: tabular-nums;
 }
 
+.summaryValueRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
+  min-width: 0;
+}
+
+.summaryValueRow .summaryValue {
+  margin-top: 0;
+}
+
+.summaryRank {
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--warning);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .summarySub {
   margin-top: 3px;
   color: var(--muted);

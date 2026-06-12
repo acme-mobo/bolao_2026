@@ -730,7 +730,10 @@ export default function HomePage() {
   }
 
   // ─── Derived data ────────────────────────────────────
-  const myPoints = leaderboard.find((r) => r.userId === profile?.id)?.points ?? 0;
+  const myLeaderboardIndex = leaderboard.findIndex((r) => r.userId === profile?.id);
+  const myLeaderboardRow = myLeaderboardIndex >= 0 ? leaderboard[myLeaderboardIndex] : null;
+  const myPoints = myLeaderboardRow?.points ?? 0;
+  const myPosition = myLeaderboardIndex >= 0 ? myLeaderboardIndex + 1 : null;
   const predictionsLoading = Boolean(user && selectedPoolId && token && !predictionsReady);
 
   const pendingMatches = useMemo(() => {
@@ -1045,7 +1048,10 @@ export default function HomePage() {
                   <span className="metricLabel">Pontos</span>
                   <Trophy size={14} />
                 </div>
-                <div className="summaryValue">{myPoints}</div>
+                <div className="summaryValueRow">
+                  <span className="summaryValue">{myPoints}</span>
+                  {myPosition ? <span className="summaryRank">{myPosition}º lugar</span> : null}
+                </div>
                 <div className="summarySub">total acumulado</div>
               </div>
               <button
