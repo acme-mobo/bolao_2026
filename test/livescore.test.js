@@ -341,3 +341,51 @@ test('LiveScoreClient busca standings no endpoint publico leagueTable', async ()
   assert.equal(standings.length, 1);
   assert.equal(standings[0].teamCode, 'MEX');
 });
+
+test('resolveAbr converte codigo ISO para FIFA em normalizeLiveScoreDateEvent', () => {
+  // Paraguay: LiveScore pode enviar Abr='PRY' (ISO) ou 'PAR' (FIFA)
+  const fixtureIso = normalizeLiveScoreDateEvent({
+    Eid: '111',
+    T1: [{ Abr: 'USA', NmEn: 'United States' }],
+    T2: [{ Abr: 'PRY', NmEn: 'Paraguay' }],
+    Tr1: 1, Tr2: 0, Esid: 2, Esd: 20260613010000,
+  });
+  assert.equal(fixtureIso.homeCode, 'USA');
+  assert.equal(fixtureIso.awayCode, 'PAR');
+
+  // Switzerland: CHE (ISO) → SUI (FIFA/bolão)
+  const fixtureChe = normalizeLiveScoreDateEvent({
+    Eid: '222',
+    T1: [{ Abr: 'QAT', NmEn: 'Qatar' }],
+    T2: [{ Abr: 'CHE', NmEn: 'Switzerland' }],
+    Tr1: 0, Tr2: 0, Esid: 1, Esd: 20260613190000,
+  });
+  assert.equal(fixtureChe.homeCode, 'QAT');
+  assert.equal(fixtureChe.awayCode, 'SUI');
+});
+
+test('resolveAbr converte codigo ISO para FIFA em normalizeLiveScoreEvent', () => {
+  const fixture = normalizeLiveScoreEvent({
+    id: '333',
+    homeTeamAbr: 'USA',
+    awayTeamAbr: 'PRY',
+    homeTeamScore: 1,
+    awayTeamScore: 0,
+    eventStatus: 'LIVE',
+    startDateTimeString: '20260613010000',
+  });
+  assert.equal(fixture.homeCode, 'USA');
+  assert.equal(fixture.awayCode, 'PAR');
+});
+
+test('normalizeLiveScoreDateEvent resolve times sem Abr por nome ingles', () => {
+  // Sem Abr, depende de NmEn → livescoreCodeOverrides
+  const fixture = normalizeLiveScoreDateEvent({
+    Eid: '444',
+    T1: [{ Abr: null, NmEn: 'United States' }],
+    T2: [{ Abr: null, NmEn: 'Paraguay' }],
+    Tr1: 1, Tr2: 0, Esid: 2, Esd: 20260613010000,
+  });
+  assert.equal(fixture.homeCode, 'USA');
+  assert.equal(fixture.awayCode, 'PAR');
+});

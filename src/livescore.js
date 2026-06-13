@@ -42,11 +42,31 @@ const livescoreCodeOverrides = new Map([
   ['DR CONGO', 'COD'],
   ['DEMOCRATIC REPUBLIC OF THE CONGO', 'COD'],
   ['ENGLAND', 'ENG'],
+  ['PARAGUAY', 'PAR'],
+  ['PRY', 'PAR'],
+  ['SWITZERLAND', 'SUI'],
+  ['CHE', 'SUI'],
+  ['QATAR', 'QAT'],
+  ['ECUADOR', 'ECU'],
+  ['SWEDEN', 'SWE'],
+  ['UZBEKISTAN', 'UZB'],
+  ['CROATIA', 'CRO'],
+  ['HRV', 'CRO'],
+  ['GHANA', 'GHA'],
+  ['NORWAY', 'NOR'],
+  ['SPAIN', 'ESP'],
+  ['URUGUAY', 'URU'],
+  ['URY', 'URU'],
 ]);
 
 const localCodeByName = new Map(
   worldCup2026Teams.map(([name, code]) => [normalizeNameKey(name), code]),
 );
+
+function resolveAbr(abr) {
+  if (!abr) return null;
+  return livescoreCodeOverrides.get(String(abr).toUpperCase()) ?? abr;
+}
 
 function parseScore(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -133,8 +153,8 @@ export function normalizeLiveScoreEvent(event) {
     group: extractGroup(event.stageName),
     venue: null,
     city: null,
-    homeCode: event.homeTeamAbr ?? null,
-    awayCode: event.awayTeamAbr ?? null,
+    homeCode: resolveAbr(event.homeTeamAbr),
+    awayCode: resolveAbr(event.awayTeamAbr),
     homeName: event.homeTeamNameEn ?? event.homeTeamName ?? '',
     awayName: event.awayTeamNameEn ?? event.awayTeamName ?? '',
     homeLogo: event.homeTeamBadge ?? event.homeTeamImgSlug ?? null,
@@ -168,8 +188,8 @@ export function normalizeLiveScoreDateEvent(event, stage = {}) {
     group: extractGroup(stage.Snm ?? stage.Sdn),
     venue: null,
     city: null,
-    homeCode: homeTeam.Abr ?? codeForTeam(homeTeam) ?? null,
-    awayCode: awayTeam.Abr ?? codeForTeam(awayTeam) ?? null,
+    homeCode: resolveAbr(homeTeam.Abr) ?? codeForTeam(homeTeam) ?? null,
+    awayCode: resolveAbr(awayTeam.Abr) ?? codeForTeam(awayTeam) ?? null,
     homeName: homeTeam.NmEn ?? homeTeam.Nm ?? homeTeam.Tnm ?? '',
     awayName: awayTeam.NmEn ?? awayTeam.Nm ?? awayTeam.Tnm ?? '',
     homeLogo: homeTeam.Img ?? null,
