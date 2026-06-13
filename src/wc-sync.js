@@ -150,8 +150,14 @@ export function isInsideLiveWindow(fixtures = [], now = new Date()) {
 async function readKnownFixturesForDate(date) {
   const dailySnap = await wcRoot().collection('daily').doc(date).get();
   const dailyFixtures = dailySnap.exists ? dailySnap.data()?.fixtures ?? [] : [];
-  if (dailyFixtures.length) return dailyFixtures;
-  return getLocalFixturesForDate(date);
+  const localFixtures = getLocalFixturesForDate(date);
+  if (!dailyFixtures.length) return localFixtures;
+  if (!localFixtures.length) return dailyFixtures;
+  // Providers may encode fixture times in local US timezones (not UTC), causing date mismatches.
+  // Always supplement Firestore data with any local fixtures not already present.
+  const dailyPairs = new Set(dailyFixtures.map((f) => `${f.homeCode}-${f.awayCode}`));
+  const missing = localFixtures.filter((f) => !dailyPairs.has(`${f.homeCode}-${f.awayCode}`));
+  return [...dailyFixtures, ...missing];
 }
 
 // ─── Escritas no Firestore ────────────────────────────
