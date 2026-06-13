@@ -178,21 +178,23 @@ test('LiveScoreClient descobre buildId e usa JSON do Next', async () => {
   const calls = [];
   globalThis.fetch = async (url) => {
     calls.push(String(url));
-    if (String(url).includes('/v1/api/app/date/soccer/20260611/0')) return jsonResponse(dateApiPayload([]));
+    if (String(url).includes('/v1/api/app/date/soccer/')) return jsonResponse(dateApiPayload([]));
     if (!String(url).includes('/_next/data/')) return htmlResponse(payload([]));
     return jsonResponse(payload([event({ eventStatus: 'FINISHED', homeTeamScore: '2', awayTeamScore: '0' })]));
   };
 
   const client = new LiveScoreClient({
     fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
+    publicApiUrl: 'https://prod-cdn-public-api.livescore.com',
   });
 
   const fixtures = await client.fetchLiveFixtures();
 
-  assert.equal(client.requestCount, 5);
+  // 2 fixture page calls + 2 results page calls + date-from-event + utcToday + utcYesterday = 7
+  assert.equal(client.requestCount, 7);
   assert.equal(calls[1], 'https://www.livescore.com/_next/data/test-build/pt/futebol/international/world-cup-2026/fixtures.json?sport=futebol&dateOrCategory=international&competitionOrStage=world-cup-2026');
   assert.equal(calls[3], 'https://www.livescore.com/_next/data/test-build/pt/futebol/international/world-cup-2026/results.json?sport=futebol&dateOrCategory=international&competitionOrStage=world-cup-2026');
-  assert.equal(calls[4], 'https://prod-cdn-public-api.livescore.com/v1/api/app/date/soccer/20260611/0?locale=pt');
+  assert.ok(calls[4].includes('/v1/api/app/date/soccer/'));
   assert.equal(fixtures.length, 1);
   assert.equal(fixtures[0].externalId, '1417909');
   assert.equal(fixtures[0].status, 'finished');
@@ -226,18 +228,20 @@ test('LiveScoreClient sobrescreve placar defasado do Next com endpoint publico p
 
 test('LiveScoreClient usa __NEXT_DATA__ como fallback se JSON falhar', async () => {
   globalThis.fetch = async (url) => {
-    if (String(url).includes('/v1/api/app/date/soccer/20260611/0')) return jsonResponse(dateApiPayload([]));
+    if (String(url).includes('/v1/api/app/date/soccer/')) return jsonResponse(dateApiPayload([]));
     if (String(url).includes('/_next/data/')) return jsonResponse({ error: true }, { status: 500 });
     return htmlResponse(payload([event()]));
   };
 
   const client = new LiveScoreClient({
     fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
+    publicApiUrl: 'https://prod-cdn-public-api.livescore.com',
   });
 
   const fixtures = await client.fetchLiveFixtures();
 
-  assert.equal(client.requestCount, 5);
+  // 2 fixture page calls + 2 results page calls + date-from-event + utcToday + utcYesterday = 7
+  assert.equal(client.requestCount, 7);
   assert.equal(fixtures.length, 1);
   assert.equal(fixtures[0].status, 'scheduled');
 });

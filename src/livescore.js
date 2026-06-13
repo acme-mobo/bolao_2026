@@ -45,6 +45,7 @@ const livescoreCodeOverrides = new Map([
   ['PARAGUAY', 'PAR'],
   ['PRY', 'PAR'],
   ['SWITZERLAND', 'SUI'],
+  ['SWI', 'SUI'],
   ['CHE', 'SUI'],
   ['QATAR', 'QAT'],
   ['ECUADOR', 'ECU'],
@@ -334,11 +335,20 @@ export class LiveScoreClient {
 
     const byId = new Map(events.filter((event) => event?.id).map((event) => [String(event.id), normalizeLiveScoreEvent(event)]));
 
-    for (const dateKey of collectDateKeys(events)) {
+    // Always call the date API for today and yesterday (UTC) to catch games the tournament page
+    // misses — e.g. games that started near midnight UTC and fall on a different local date.
+    const now = new Date();
+    const utcToday = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const utcYesterday = new Date(now - 86_400_000).toISOString().slice(0, 10).replace(/-/g, '');
+    const dateKeysFromPage = collectDateKeys(events);
+    const allDateKeys = [...new Set([utcToday, utcYesterday, ...dateKeysFromPage])];
+
+    for (const dateKey of allDateKeys) {
       try {
         const dateFixtures = await this.fetchDateFixtures(dateKey);
         for (const fixture of dateFixtures) {
-          if (byId.has(fixture.externalId)) byId.set(fixture.externalId, fixture);
+          // Date API overrides page data for known IDs; new IDs are added directly.
+          byId.set(fixture.externalId, fixture);
         }
       } catch {
         // The public date API is an enrichment for live score freshness; Next data remains the fallback.
