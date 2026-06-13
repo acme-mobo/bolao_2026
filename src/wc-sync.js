@@ -153,11 +153,17 @@ async function readKnownFixturesForDate(date) {
   const localFixtures = getLocalFixturesForDate(date);
   if (!dailyFixtures.length) return localFixtures;
   if (!localFixtures.length) return dailyFixtures;
-  // Providers may encode fixture times in local US timezones (not UTC), causing date mismatches.
-  // Always supplement Firestore data with any local fixtures not already present.
-  const dailyPairs = new Set(dailyFixtures.map((f) => `${f.homeCode}-${f.awayCode}`));
-  const missing = localFixtures.filter((f) => !dailyPairs.has(`${f.homeCode}-${f.awayCode}`));
-  return [...dailyFixtures, ...missing];
+  // Providers may encode fixture times in local US timezones instead of UTC, causing the stored
+  // date to be off by several hours. Local data has authoritative UTC dates — always use them
+  // for window detection, while still carrying live scores from Firestore.
+  const dailyByPair = new Map(dailyFixtures.map((f) => [`${f.homeCode}-${f.awayCode}`, f]));
+  const merged = localFixtures.map((local) => {
+    const daily = dailyByPair.get(`${local.homeCode}-${local.awayCode}`);
+    return daily ? { ...daily, date: local.date } : local;
+  });
+  const localPairs = new Set(localFixtures.map((f) => `${f.homeCode}-${f.awayCode}`));
+  const extras = dailyFixtures.filter((f) => !localPairs.has(`${f.homeCode}-${f.awayCode}`));
+  return [...merged, ...extras];
 }
 
 // ─── Escritas no Firestore ────────────────────────────
