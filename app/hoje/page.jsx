@@ -248,7 +248,6 @@ function RankingPanel({ leaderboard, profileId }) {
             <span />
             <span className="rankHeaderPts" title="Pontuação total">Pts</span>
             <span className="rankHeaderStat" title="Placares exatos">E</span>
-            <span className="rankHeaderStat" title="Vencedores acertados">V</span>
           </div>
           <ol className="leaderboard">
             {leaderboard.map((row, i) => (
@@ -260,11 +259,10 @@ function RankingPanel({ leaderboard, profileId }) {
                 </span>
                 <span className="rankPoints">{row.points}</span>
                 <span className="rankStat">{row.exactCount ?? 0}</span>
-                <span className="rankStat">{row.correctOutcomeCount ?? 0}</span>
               </li>
             ))}
           </ol>
-          <p className="rankLegend">E: placares exatos · V: vencedores acertados</p>
+          <p className="rankLegend">E: placares exatos · desempate por exatos</p>
         </>
       ) : (
         <div className="emptyState">Nenhum palpite ainda.</div>

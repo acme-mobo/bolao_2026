@@ -206,36 +206,34 @@ Regras (em ordem de prioridade):
 
 | Pontos | Condicao |
 | ---: | --- |
-| 25 | Placar exato — acertou o placare (vale para vitorias e empates) |
-| 18 | Vencedor correto + saldo de gols correto (diferenca igual, sem acertar o placar exato) |
-| 15 | Vencedor correto + gols exatos de uma das equipes |
-| 10 | Vencedor correto apenas — ou empate acertado com placar errado |
+| 5 | Placar exato — vale para vitorias e empates |
+| 3 | Vencedor correto — ou empate correto sem placar exato |
 | 0 | Resultado incorreto, ou jogo ainda sem placar oficial |
 
 Exemplos considerando resultado real `Brasil 2 x 1 Marrocos`:
 
 | Palpite | Pontos | Motivo |
 | --- | ---: | --- |
-| 2 x 1 | 25 | Placar exato |
-| 3 x 2 | 18 | Vencedor + saldo (+1 = +1) |
-| 1 x 0 | 18 | Vencedor + saldo (+1 = +1) |
-| 2 x 0 | 15 | Vencedor + gols do mandante (2 = 2) |
-| 3 x 1 | 15 | Vencedor + gols do visitante (1 = 1) |
-| 3 x 0 | 10 | So o vencedor |
+| 2 x 1 | 5 | Placar exato |
+| 3 x 2 | 3 | Vencedor correto, placar diferente |
+| 1 x 0 | 3 | Vencedor correto, placar diferente |
+| 2 x 0 | 3 | Vencedor correto, placar diferente |
+| 3 x 1 | 3 | Vencedor correto, placar diferente |
+| 3 x 0 | 3 | Vencedor correto, placar diferente |
 | 0 x 1 | 0 | Resultado incorreto |
 
 Exemplo de empate — resultado real `Argentina 1 x 1 Austria`:
 
 | Palpite | Pontos | Motivo |
 | --- | ---: | --- |
-| 1 x 1 | 25 | Placar exato |
-| 0 x 0 | 10 | Empate acertado, placar diferente |
-| 2 x 2 | 10 | Empate acertado, placar diferente |
+| 1 x 1 | 5 | Placar exato |
+| 0 x 0 | 3 | Empate acertado, placar diferente |
+| 2 x 2 | 3 | Empate acertado, placar diferente |
 | 2 x 1 | 0 | Resultado incorreto |
 
 Observacoes:
 
-- Para empates, os criterios de 18 e 15 pontos nao se aplicam; o maximo sem placar exato e 10 pontos.
+- Nao existem pontos intermediarios por saldo de gols ou gols de uma equipe.
 - Sem resultado oficial, o palpite vale 0 temporariamente.
 
 ## Ranking
@@ -249,7 +247,7 @@ Observacoes:
       "userId": "usr_...",
       "name": "Vagner",
       "predictions": 10,
-      "points": 82,
+      "points": 24,
       "exactCount": 3,
       "correctOutcomeCount": 7
     }
@@ -261,8 +259,9 @@ Ordenacao e criterios de desempate:
 
 1. Maior pontuacao total.
 2. Maior numero de placares exatos (`exactCount`).
-3. Maior numero de vencedores/empates acertados (`correctOutcomeCount`).
-4. Nome em ordem alfabetica.
+3. Nome em ordem alfabetica.
+
+`correctOutcomeCount` pode aparecer na resposta para compatibilidade, mas nao e criterio de desempate.
 
 Regras de UX:
 

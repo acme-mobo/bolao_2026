@@ -1733,7 +1733,7 @@ button { cursor: pointer; border: 0; }
 .rankHeader,
 .leaderboard li {
   display: grid;
-  grid-template-columns: 22px 1fr 34px 34px 34px;
+  grid-template-columns: 22px 1fr 42px 34px;
   align-items: center;
   gap: 9px;
   padding: 0 13px 0 9px;

@@ -180,10 +180,8 @@ function avatarColor(id = '') {
 
 function ScoringRulesModal({ onClose }) {
   const rules = [
-    { pts: 25, label: 'Placar exato',              desc: 'Acertou o placar — vale para vitórias e empates', highlight: true },
-    { pts: 18, label: 'Vencedor + saldo de gols',  desc: 'Acertou o vencedor e a diferença de gols \n(ex: apostou 3×1, saiu 2×0)' },
-    { pts: 15, label: 'Vencedor + gols de um time', desc: 'Acertou o vencedor e os gols de uma das equipes \n(ex: apostou 2×0, saiu 2×1)' },
-    { pts: 10, label: 'Só o vencedor / empate',    desc: 'Acertou apenas o resultado — quem vence ou que termina empatado' },
+    { pts: 5, label: 'Placar exato', desc: 'Acertou o placar completo — vale para vitórias e empates', highlight: true },
+    { pts: 3, label: 'Vencedor / empate', desc: 'Acertou quem vence ou que o jogo termina empatado, sem placar exato' },
   ];
   return (
     <div className="modalOverlay" role="dialog" aria-modal="true"
@@ -192,7 +190,7 @@ function ScoringRulesModal({ onClose }) {
         <div className="modalHead">
           <div className="modalHeadIcon"><Trophy size={20} /></div>
           <h3>Regras de Pontuação</h3>
-          <p>Cada jogo vale no máximo 25 pts. Palpites fecham no início da partida.</p>
+          <p>Cada jogo vale no máximo 5 pts. Palpites fecham no início da partida.</p>
         </div>
         <div className="modalBody">
           <div className="rulesTable">
@@ -207,7 +205,7 @@ function ScoringRulesModal({ onClose }) {
             ))}
           </div>
           <p className="rulesNote">
-            Desempate: mais placares exatos → mais vencedores acertados.
+            Desempate: maior número de placares exatos.
           </p>
         </div>
         <div className="modalFoot">
@@ -234,7 +232,7 @@ function MatchPredictionsPanel({ matchId, poolId, token, myUserId }) {
   return (
     <ul className="predsList">
       {state.data.map((p) => {
-        const cls = p.points === 25 ? 'exact' : p.points > 0 ? 'partial' : 'zero';
+        const cls = p.points === 5 ? 'exact' : p.points > 0 ? 'partial' : 'zero';
         return (
           <li key={p.userId} className={`predRow${p.userId === myUserId ? ' me' : ''}`}>
             <div className="predAvatar" style={{ background: avatarColor(p.userId) }}>
@@ -243,7 +241,7 @@ function MatchPredictionsPanel({ matchId, poolId, token, myUserId }) {
             <span className="predName">{p.userId === myUserId ? `${p.userName} (você)` : p.userName}</span>
             <span className="predScore">{p.homeGoals} × {p.awayGoals}</span>
             <span className={`predPts ${cls}`}>
-              {p.points === 25 ? '⭐ ' : ''}{p.points} pts
+              {p.points === 5 ? '⭐ ' : ''}{p.points} pts
             </span>
           </li>
         );
@@ -1428,7 +1426,6 @@ export default function HomePage() {
                   <span />{/* nome */}
                   <span className="rankHeaderPts" title="Pontuação total">Pts</span>
                   <span className="rankHeaderStat" title="Placares exatos">E</span>
-                  <span className="rankHeaderStat" title="Vencedores acertados">V</span>
                 </div>
                 <ol className="leaderboard">
                   {leaderboard.map((row, i) => (
@@ -1440,11 +1437,10 @@ export default function HomePage() {
                       </span>
                       <span className="rankPoints">{row.points}</span>
                       <span className="rankStat">{row.exactCount ?? 0}</span>
-                      <span className="rankStat">{row.correctOutcomeCount ?? 0}</span>
                     </li>
                   ))}
                 </ol>
-                <p className="rankLegend">E: placares exatos · V: vencedores acertados</p>
+                <p className="rankLegend">E: placares exatos · desempate por exatos</p>
               </>
             ) : (
               <div className="emptyState">Nenhum palpite ainda.</div>

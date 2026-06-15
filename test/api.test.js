@@ -369,7 +369,7 @@ test('leaderboard recalcula pontos com placar de jogo em andamento', async () =>
   });
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.leaderboard[0].points, 25);
+  assert.equal(response.body.leaderboard[0].points, 5);
   assert.equal(response.body.leaderboard[0].exactCount, 1);
 });
 
@@ -422,7 +422,7 @@ test('palpites dos jogadores ficam visiveis em jogo ao vivo', async () => {
 
   assert.equal(response.status, 200);
   assert.equal(response.body.predictions.length, 1);
-  assert.equal(response.body.predictions[0].points, 25);
+  assert.equal(response.body.predictions[0].points, 5);
 });
 
 test('sincroniza resultado via provider de live score', async () => {
