@@ -271,11 +271,24 @@ function Stepper({ value, onChange, disabled, label }) {
   );
 }
 
-function RankPosition({ index }) {
-  if (index === 0) return <span className="rankPos gold">1</span>;
-  if (index === 1) return <span className="rankPos silver">2</span>;
-  if (index === 2) return <span className="rankPos bronze">3</span>;
-  return <span className="rankPos">{index + 1}</span>;
+function isLeaderboardTie(a, b) {
+  return (a?.points ?? 0) === (b?.points ?? 0)
+    && (a?.exactCount ?? 0) === (b?.exactCount ?? 0);
+}
+
+function getDenseLeaderboardRank(leaderboard, index) {
+  let rank = 1;
+  for (let i = 1; i <= index; i++) {
+    if (!isLeaderboardTie(leaderboard[i], leaderboard[i - 1])) rank++;
+  }
+  return rank;
+}
+
+function RankPosition({ rank }) {
+  if (rank === 1) return <span className="rankPos gold">1</span>;
+  if (rank === 2) return <span className="rankPos silver">2</span>;
+  if (rank === 3) return <span className="rankPos bronze">3</span>;
+  return <span className="rankPos">{rank}</span>;
 }
 
 function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
@@ -824,7 +837,7 @@ export default function HomePage() {
   const myLeaderboardIndex = leaderboard.findIndex((r) => r.userId === profile?.id);
   const myLeaderboardRow = myLeaderboardIndex >= 0 ? leaderboard[myLeaderboardIndex] : null;
   const myPoints = myLeaderboardRow?.points ?? 0;
-  const myPosition = myLeaderboardIndex >= 0 ? myLeaderboardIndex + 1 : null;
+  const myPosition = myLeaderboardIndex >= 0 ? getDenseLeaderboardRank(leaderboard, myLeaderboardIndex) : null;
   const predictionsLoading = Boolean(user && selectedPoolId && token && !predictionsReady);
 
   const pendingMatches = useMemo(() => {
@@ -1428,17 +1441,20 @@ export default function HomePage() {
                   <span className="rankHeaderStat" title="Placares exatos">E</span>
                 </div>
                 <ol className="leaderboard">
-                  {leaderboard.map((row, i) => (
-                    <li key={row.userId} className={row.userId === profile?.id ? 'me' : ''}>
-                      <RankPosition index={i} />
-                      <span className="rankPlayer">
-                        <span className="rankName">{row.name}</span>
-                        {row.username && <span className="rankUsername">@{row.username}</span>}
-                      </span>
-                      <span className="rankPoints">{row.points}</span>
-                      <span className="rankStat">{row.exactCount ?? 0}</span>
-                    </li>
-                  ))}
+                  {leaderboard.map((row, i) => {
+                    const rank = getDenseLeaderboardRank(leaderboard, i);
+                    return (
+                      <li key={row.userId} className={row.userId === profile?.id ? 'me' : ''}>
+                        <RankPosition rank={rank} />
+                        <span className="rankPlayer">
+                          <span className="rankName">{row.name}</span>
+                          {row.username && <span className="rankUsername">@{row.username}</span>}
+                        </span>
+                        <span className="rankPoints">{row.points}</span>
+                        <span className="rankStat">{row.exactCount ?? 0}</span>
+                      </li>
+                    );
+                  })}
                 </ol>
                 <p className="rankLegend">E: placares exatos · desempate por exatos</p>
               </>
