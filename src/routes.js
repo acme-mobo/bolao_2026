@@ -6,6 +6,7 @@ import { createLiveScoreProvider, syncLiveScores } from './live-score.js';
 import { findMatchByReference, isPredictionOpen, predictionBelongsToMatch } from './match-reference.js';
 import { buildLeaderboard, scorePrediction } from './scoring.js';
 import { optionalDate, requireEmail, requireInteger, requireString } from './validation.js';
+import { buildCompactSyncResponse, orchestrate } from './wc-sync.js';
 
 function route(method, pattern, handler) {
   return { method, pattern, handler };
@@ -236,6 +237,16 @@ export function createRouter(store, options = {}) {
       send(response, 200, result);
     }),
 
+    route('POST', /^\/admin\/sync$/, async (request, response, db) => {
+      const user = await requireFirebaseAuth(db, request);
+      requireAdmin(user);
+
+      const providerStatus = liveScoreProvider.getStatus();
+      const result = await orchestrate({ force: true });
+
+      send(response, 200, { sync: buildCompactSyncResponse(result, providerStatus) });
+    }),
+
     route('POST', /^\/matches$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
       requireAdmin(user);
@@ -279,13 +290,18 @@ export function createRouter(store, options = {}) {
 
         if (body.startsAt !== undefined) existing.startsAt = optionalDate(body.startsAt, 'startsAt');
         if (body.lockAt !== undefined) existing.lockAt = optionalDate(body.lockAt, 'lockAt');
+        const statusProvided = body.status !== undefined;
         if (body.status !== undefined) {
           assert(['scheduled', 'live', 'finished', 'cancelled'].includes(body.status), 400, 'Status invalido');
           existing.status = body.status;
         }
-        if (body.homeGoals !== undefined) existing.homeGoals = requireInteger(body.homeGoals, 'homeGoals', 0);
-        if (body.awayGoals !== undefined) existing.awayGoals = requireInteger(body.awayGoals, 'awayGoals', 0);
-        if (existing.homeGoals !== null && existing.awayGoals !== null) existing.status = 'finished';
+        if (body.homeGoals !== undefined) {
+          existing.homeGoals = body.homeGoals === null ? null : requireInteger(body.homeGoals, 'homeGoals', 0);
+        }
+        if (body.awayGoals !== undefined) {
+          existing.awayGoals = body.awayGoals === null ? null : requireInteger(body.awayGoals, 'awayGoals', 0);
+        }
+        if (!statusProvided && existing.homeGoals !== null && existing.awayGoals !== null) existing.status = 'finished';
 
         return existing;
       });
@@ -467,8 +483,9 @@ export function createRouter(store, options = {}) {
       );
       const match = findMatchByReference(db.matches, matchId);
       assert(match, 404, 'Jogo nao encontrado');
+      const hasStarted = match.startsAt && new Date(match.startsAt).getTime() <= Date.now();
       assert(
-        match.status === 'live' || match.status === 'finished',
+        match.status === 'live' || match.status === 'finished' || hasStarted,
         403,
         'Palpites visiveis somente apos inicio do jogo',
       );

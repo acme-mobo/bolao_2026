@@ -129,7 +129,7 @@ function normalizeDateApiStatus(event) {
   const statusText = String(event.Eps ?? '').toUpperCase();
 
   if (DATE_API_FINISHED_STATUSES.has(statusId) || ['FT', 'AET', 'AP', 'PEN'].includes(statusText)) return 'finished';
-  if (DATE_API_LIVE_STATUSES.has(statusId) || statusText.includes("'") || event.Etm?.RTm) return 'live';
+  if (DATE_API_LIVE_STATUSES.has(statusId) || ['HT', 'LIVE'].includes(statusText) || statusText.includes("'") || event.Etm?.RTm) return 'live';
   if (['POSTP', 'PST', 'CAN', 'ABD', 'SUSP'].includes(statusText)) return statusText === 'CAN' ? 'cancelled' : 'scheduled';
   return 'scheduled';
 }

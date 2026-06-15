@@ -132,6 +132,8 @@ test('applyLiveFixturesToDb atualiza partida por externalMatchId quando siglas n
       {
         externalId: '1417909',
         status: 'live',
+        statusShort: 'HT',
+        statusElapsed: null,
         homeCode: 'MEX',
         awayCode: 'RSA',
         homeGoals: 0,
@@ -146,6 +148,8 @@ test('applyLiveFixturesToDb atualiza partida por externalMatchId quando siglas n
   assert.equal(db.matches[0].status, 'live');
   assert.equal(db.matches[0].homeGoals, 0);
   assert.equal(db.matches[0].awayGoals, 0);
+  assert.equal(db.matches[0].externalStatusShort, 'HT');
+  assert.equal(db.matches[0].externalStatusElapsed, null);
 });
 
 test('FootballDataLiveScoreProvider normaliza fixtures para contrato comum', async () => {

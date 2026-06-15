@@ -174,6 +174,21 @@ test('normalizeLiveScoreDateEvent normaliza placar ao vivo do endpoint publico p
   assert.equal(fixture.group, 'A');
 });
 
+test('normalizeLiveScoreDateEvent trata intervalo como jogo ao vivo', () => {
+  const fixture = normalizeLiveScoreDateEvent(dateApiEvent({
+    Eps: 'HT',
+    Esid: 0,
+    Etm: {},
+    Tr1: '1',
+    Tr2: '1',
+  }), { Snm: 'Group A' });
+
+  assert.equal(fixture.status, 'live');
+  assert.equal(fixture.statusShort, 'HT');
+  assert.equal(fixture.homeGoals, 1);
+  assert.equal(fixture.awayGoals, 1);
+});
+
 test('LiveScoreClient descobre buildId e usa JSON do Next', async () => {
   const calls = [];
   globalThis.fetch = async (url) => {

@@ -213,11 +213,17 @@ export function applyLiveFixturesToDb(db, remoteMatches, providerStatus) {
       homeGoals: localMatch.homeGoals,
       awayGoals: localMatch.awayGoals,
       externalMatchId: localMatch.externalMatchId,
+      externalStatusShort: localMatch.externalStatusShort,
+      externalStatusElapsed: localMatch.externalStatusElapsed,
+      externalRawStatus: localMatch.externalRawStatus,
     };
 
     localMatch.externalProvider = providerStatus.provider;
     localMatch.externalMatchId = externalIdFor(remoteMatch);
     localMatch.externalLastUpdated = lastUpdatedFor(remoteMatch, now);
+    localMatch.externalStatusShort = remoteMatch.statusShort ?? null;
+    localMatch.externalStatusElapsed = remoteMatch.statusElapsed ?? null;
+    localMatch.externalRawStatus = remoteMatch.rawStatus ?? remoteMatch.statusShort ?? null;
     localMatch.status = remoteMatch.status;
 
     if (remoteMatch.homeGoals !== null && remoteMatch.awayGoals !== null) {
@@ -229,7 +235,10 @@ export function applyLiveFixturesToDb(db, remoteMatches, providerStatus) {
       before.status !== localMatch.status ||
       before.homeGoals !== localMatch.homeGoals ||
       before.awayGoals !== localMatch.awayGoals ||
-      before.externalMatchId !== localMatch.externalMatchId;
+      before.externalMatchId !== localMatch.externalMatchId ||
+      before.externalStatusShort !== localMatch.externalStatusShort ||
+      before.externalStatusElapsed !== localMatch.externalStatusElapsed ||
+      before.externalRawStatus !== localMatch.externalRawStatus;
 
     if (changed) {
       changes.push({
@@ -241,6 +250,9 @@ export function applyLiveFixturesToDb(db, remoteMatches, providerStatus) {
           status: localMatch.status,
           homeGoals: localMatch.homeGoals,
           awayGoals: localMatch.awayGoals,
+          externalStatusShort: localMatch.externalStatusShort,
+          externalStatusElapsed: localMatch.externalStatusElapsed,
+          externalRawStatus: localMatch.externalRawStatus,
         },
       });
     }
