@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import {
-  CalendarDays, Clock, Home, LogOut, Moon, Radio, Shield, Sun, Trophy,
+  Clock, Home, LogOut, Moon, Radio, Sun, Trophy,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -119,14 +119,6 @@ function formatMatchTime(value) {
   return new Intl.DateTimeFormat('pt-BR', {
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
-}
-
-function formatDayLabel(value) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
   }).format(new Date(value));
 }
 
@@ -278,7 +270,6 @@ export default function TodayPage() {
   const [authReady, setAuthReady] = useState(false);
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
-  const [activePool, setActivePool] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [predictions, setPredictions] = useState([]);
   const [theme, setTheme] = useState('dark');
@@ -311,7 +302,6 @@ export default function TodayPage() {
       api('/pools/active', nextToken),
     ]);
     setProfile(me.user);
-    setActivePool(poolData.pool);
     const [rankData, predData] = await Promise.all([
       api(`/pools/${poolData.pool.id}/leaderboard`, nextToken),
       api(`/pools/${poolData.pool.id}/predictions`, nextToken),
@@ -330,7 +320,6 @@ export default function TodayPage() {
           setUser(null);
           setToken('');
           setProfile(null);
-          setActivePool(null);
           setLeaderboard([]);
           setPredictions([]);
           return;
@@ -382,8 +371,6 @@ export default function TodayPage() {
     return Object.fromEntries(predictions.map((prediction) => [prediction.matchId, prediction]));
   }, [predictions]);
 
-  const myLeaderboardIndex = leaderboard.findIndex((row) => row.userId === profile?.id);
-  const myLeaderboardRow = myLeaderboardIndex >= 0 ? leaderboard[myLeaderboardIndex] : null;
   const hasLiveRefreshWindow = todayMatches.some((match) => {
     const urgency = getUrgency(match, now);
     return urgency === 'live' || urgency === 'urgent' || urgency === 'warning';
@@ -465,38 +452,6 @@ export default function TodayPage() {
         </div>
       ) : (
         <div className="todayGrid">
-          <section className="todayHero">
-            <div className="todayHeroText">
-              <div className="heroMeta">
-                <span className={`badge ${liveMatches.length ? 'liveNow' : 'active'}`}>
-                  {liveMatches.length ? 'Ao vivo agora' : 'Jogos do dia'}
-                </span>
-                {activePool?.inviteCode && (
-                  <span className="badge inviteCode">#{activePool.inviteCode}</span>
-                )}
-              </div>
-              <h2>{formatDayLabel(now)}</h2>
-              <p className="heroSub">{activePool?.name ?? 'Bolão ativo'}</p>
-            </div>
-            <div className="todayHeroStats">
-              <div className="todayStat">
-                <Radio size={15} />
-                <span>{liveMatches.length}</span>
-                <small>ao vivo</small>
-              </div>
-              <div className="todayStat">
-                <CalendarDays size={15} />
-                <span>{todayMatches.length}</span>
-                <small>hoje</small>
-              </div>
-              <div className="todayStat">
-                <Shield size={15} />
-                <span>{myLeaderboardIndex >= 0 ? `${myLeaderboardIndex + 1}º` : '-'}</span>
-                <small>{myLeaderboardRow?.points ?? 0} pts</small>
-              </div>
-            </div>
-          </section>
-
           {error && <div className="todayError">{error}</div>}
 
           <section className="panel todayMatchesPanel">
