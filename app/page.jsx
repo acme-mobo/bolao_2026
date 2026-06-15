@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import {
   AlertTriangle, CalendarDays, Check, CheckCircle, ChevronDown,
-  Clock, HelpCircle, LogOut, Moon, Pencil, Save, Shield, Sun,
+  Clock, HelpCircle, LogOut, Moon, Pencil, Save, Settings, Shield, Sun,
   Trash2, Trophy, Users, X,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -103,8 +104,26 @@ function isMatchLocked(match, nowMs = Date.now()) {
   return predictionLockTime(match) <= nowMs;
 }
 
+function matchElapsedMs(match, nowMs = Date.now()) {
+  const startsAtMs = new Date(match?.startsAt).getTime();
+  if (Number.isNaN(startsAtMs)) return Number.POSITIVE_INFINITY;
+  return nowMs - startsAtMs;
+}
+
+function hasKnownScore(match) {
+  return match?.homeGoals != null && match?.awayGoals != null;
+}
+
+function isLikelyLive(match, nowMs = Date.now()) {
+  if (match?.status === 'live') return true;
+  if (match?.status === 'finished' || match?.status === 'cancelled') return false;
+  const elapsed = matchElapsedMs(match, nowMs);
+  if (elapsed < 0 || elapsed > 3 * 3600_000) return false;
+  return hasKnownScore(match);
+}
+
 function getUrgency(match, nowMs = Date.now()) {
-  if (match.status === 'live') return 'live';
+  if (isLikelyLive(match, nowMs)) return 'live';
   if (match.status === 'finished' || match.status === 'cancelled') return 'done';
   const lock = predictionLockTime(match);
   const diff = lock - nowMs;
@@ -112,6 +131,11 @@ function getUrgency(match, nowMs = Date.now()) {
   if (diff < 6 * 3600_000) return 'urgent';
   if (diff < 24 * 3600_000) return 'warning';
   return 'normal';
+}
+
+function isHalftime(match) {
+  const status = String(match?.externalStatusShort ?? match?.externalRawStatus ?? '').toUpperCase();
+  return isLikelyLive(match) && ['HT', 'HALFTIME', 'HALF_TIME', 'PAUSED', 'INTERVAL'].includes(status);
 }
 
 function formatCountdown(match, nowMs = Date.now()) {
@@ -229,7 +253,8 @@ function MatchPredictionsPanel({ matchId, poolId, token, myUserId }) {
 }
 
 function MatchStatusBadge({ match }) {
-  if (match.status === 'live')      return <span className="statusBadge live">● Ao vivo</span>;
+  if (isHalftime(match))           return <span className="statusBadge halftime">Intervalo</span>;
+  if (isLikelyLive(match))          return <span className="statusBadge live">● Ao vivo</span>;
   if (match.status === 'finished')  return <span className="statusBadge finished">Encerrado</span>;
   if (match.status === 'cancelled') return <span className="statusBadge cancelled">Cancelado</span>;
   if (isMatchLocked(match))         return <span className="statusBadge locked">Fechado</span>;
@@ -258,8 +283,9 @@ function RankPosition({ index }) {
 function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
   selectedPoolId, token, myUserId, showGroup, urgency, now, variant = 'default',
   onUpdateDraft, onSave, onDeletePrediction }) {
+  const inProgress = isLikelyLive(match, now);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [showPreds, setShowPreds] = useState(match.status === 'live');
+  const [showPreds, setShowPreds] = useState(inProgress);
 
   const home = teamById(teams, match.homeTeamId);
   const away = teamById(teams, match.awayTeamId);
@@ -268,9 +294,9 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
     homeGoals: prediction?.homeGoals ?? 0,
     awayGoals: prediction?.awayGoals ?? 0,
   };
-  const locked = urgency === 'locked' || urgency === 'done' || match.status === 'live';
+  const locked = urgency === 'locked' || urgency === 'done' || inProgress;
   const isFinished = match.status === 'finished';
-  const canViewMatchPredictions = match.status === 'live' || isFinished;
+  const canViewMatchPredictions = inProgress || isFinished;
   const hasScore = match.homeGoals != null && match.awayGoals != null;
   const scoreFirst = variant === 'score';
   const isSaved = savedMatches.has(match.id);
@@ -279,8 +305,8 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
     ? formatCountdown(match, now) : null;
 
   useEffect(() => {
-    if (match.status === 'live') setShowPreds(true);
-  }, [match.status]);
+    if (inProgress) setShowPreds(true);
+  }, [inProgress]);
 
   function handleDeleteConfirm() {
     if (!token) return;
@@ -289,7 +315,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
   }
 
   return (
-    <article className={`matchCard${scoreFirst ? ' gameCard' : ''}${match.status === 'live' ? ' liveGame' : ''}${locked ? ' locked' : ''}${urgency === 'urgent' ? ' urgent' : ''}${urgency === 'warning' ? ' warning' : ''}`}>
+    <article className={`matchCard${scoreFirst ? ' gameCard' : ''}${inProgress ? ' liveGame' : ''}${locked ? ' locked' : ''}${urgency === 'urgent' ? ' urgent' : ''}${urgency === 'warning' ? ' warning' : ''}`}>
       <div className="matchCardHead">
         <div className="matchCardLeft">
           <span className="matchNum">#{match.matchNumber}</span>
@@ -328,7 +354,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
                 <span className="vsLabel">VS</span>
               )}
             </div>
-          ) : (isFinished || match.status === 'live') && hasScore ? (
+          ) : (isFinished || inProgress) && hasScore ? (
             <div className="resultScore">
               <span className="resultNum">{match.homeGoals}</span>
               <span className="resultSep">×</span>
@@ -984,6 +1010,18 @@ export default function HomePage() {
           </div>
         </div>
         <div className="topbarActions">
+          {user && (
+            <Link className="topbarLink" href="/hoje" title="Jogos de hoje e ranking">
+              <CalendarDays size={15} />
+              <span>Hoje</span>
+            </Link>
+          )}
+          {profile?.role === 'admin' && (
+            <Link className="topbarLink" href="/admin/placares" title="Editar placares manualmente">
+              <Settings size={15} />
+              <span>Admin</span>
+            </Link>
+          )}
           <button className="themeToggle" onClick={toggleTheme}
             aria-label={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
             title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}>

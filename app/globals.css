@@ -161,6 +161,28 @@ button { cursor: pointer; border: 0; }
   gap: 8px;
 }
 
+.topbarLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.topbarLink:hover {
+  background: var(--glass-hover);
+  color: var(--text);
+}
+
 /* ─── Theme toggle ───────────────────────────────── */
 .themeToggle {
   display: flex;
@@ -456,6 +478,12 @@ button { cursor: pointer; border: 0; }
   font-family: monospace;
   letter-spacing: 1px;
   font-size: 12px;
+}
+
+.badge.liveNow {
+  background: var(--live-dim);
+  color: var(--live);
+  border: 1px solid rgba(34,197,94,0.22);
 }
 
 .heroPanel h2 {
@@ -817,9 +845,364 @@ button { cursor: pointer; border: 0; }
   flex-shrink: 0;
 }
 
+.titleIcon.danger {
+  background: rgba(244,63,94,0.12);
+  color: var(--danger);
+}
+
 .mainPanel   { grid-column: span 8; }
 .sidePanel   { grid-column: span 4; }
 .groupsPanel { grid-column: 1 / -1; }
+
+/* ═══════════════════════════════════════════════════
+   Today page
+═══════════════════════════════════════════════════ */
+.todayGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 14px;
+  align-items: start;
+}
+
+.todayHero {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 126px;
+  padding: 22px 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(0,229,153,0.08), transparent 42%),
+    var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .todayHero {
+  background:
+    linear-gradient(135deg, rgba(5,150,105,0.08), transparent 42%),
+    var(--surface);
+}
+
+.todayHeroText {
+  min-width: 0;
+}
+
+.todayHero h2 {
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 900;
+  line-height: 1.08;
+  text-transform: capitalize;
+}
+
+.todayHeroStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(88px, 1fr));
+  gap: 9px;
+}
+
+.todayStat {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  min-height: 82px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg2);
+}
+
+.todayStat svg {
+  color: var(--brand);
+}
+
+.todayStat span {
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.todayStat small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.todayError {
+  grid-column: 1 / -1;
+  padding: 10px 13px;
+  border: 1px solid rgba(244,63,94,0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(244,63,94,0.08);
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.todayMatchesPanel {
+  grid-column: 1;
+}
+
+.todayRankPanel {
+  grid-column: 2;
+  position: sticky;
+  top: 14px;
+}
+
+.todayGameCard.featuredGame {
+  border-color: rgba(34,197,94,0.5);
+  box-shadow: 0 0 0 1px rgba(34,197,94,0.1), 0 14px 34px rgba(0,0,0,0.22);
+}
+
+.todayGameCard.featuredGame .gameScore {
+  transform: scale(1.04);
+}
+
+/* ═══════════════════════════════════════════════════
+   Admin scores page
+═══════════════════════════════════════════════════ */
+.adminScoresGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.adminHeaderPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(245,166,35,0.08), transparent 40%),
+    var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.adminHeaderPanel h2 {
+  margin-top: 9px;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 900;
+  line-height: 1.08;
+}
+
+.adminHeaderActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.adminRefreshBtn,
+.adminSyncBtn {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.adminSyncBtn {
+  min-height: 40px;
+  margin-top: 0;
+}
+
+.adminControlsPanel {
+  display: grid;
+  gap: 12px;
+}
+
+.adminSearch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg2);
+  color: var(--muted);
+}
+
+.adminSearch input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  outline: none;
+  font-size: 14px;
+}
+
+.adminSearch input::placeholder {
+  color: var(--muted-dim);
+}
+
+.adminStatusFilters {
+  margin-bottom: 0;
+}
+
+.adminMatchList {
+  display: grid;
+  gap: 9px;
+}
+
+.adminMatchRow {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(150px, 180px) 104px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg2);
+}
+
+.adminMatchMeta {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.adminMatchTop {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+
+.adminTeams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.adminTeams > span {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.teamFlag.compact {
+  font-size: 19px;
+  line-height: 1;
+}
+
+.adminTeams strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.adminTeams small {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adminScoreControls {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+}
+
+.adminScoreControls label,
+.adminStatusControl label {
+  display: grid;
+  gap: 4px;
+}
+
+.adminScoreControls label span,
+.adminStatusControl label span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.adminScoreControls input,
+.adminStatusControl select {
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+
+.adminScoreControls input {
+  width: 58px;
+  padding: 0 8px;
+  text-align: center;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.adminStatusControl select {
+  width: 100%;
+  padding: 0 10px;
+}
+
+.adminSaveBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: var(--radius-xs);
+  background: var(--brand);
+  color: var(--on-brand);
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: var(--brand-glow);
+  transition: all 0.15s;
+}
+
+.adminSaveBtn:hover:not(:disabled) {
+  background: var(--brand-light);
+}
+
+.adminSaveBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.adminSaveBtn.saved {
+  background: var(--brand-dim);
+  color: var(--brand);
+  box-shadow: none;
+}
+
+.adminAccessPanel {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 42px 20px;
+  text-align: center;
+}
+
+.adminAccessPanel h2 {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.adminAccessPanel p {
+  color: var(--muted);
+}
 
 /* ═══════════════════════════════════════════════════
    Nav mode tabs
@@ -1332,6 +1715,7 @@ button { cursor: pointer; border: 0; }
 }
 
 .statusBadge.live      { background: var(--live-dim); color: var(--live); animation: pulse 1.5s infinite; }
+.statusBadge.halftime  { background: rgba(245,166,35,0.13); color: var(--gold); }
 .statusBadge.finished  { background: rgba(107,114,128,0.13); color: var(--finished); }
 .statusBadge.cancelled { background: rgba(244,63,94,0.1); color: var(--danger); }
 .statusBadge.locked    { background: var(--glass-bg); color: var(--muted-dim); }
@@ -1975,6 +2359,21 @@ button { cursor: pointer; border: 0; }
   .sidePanel  { grid-column: span 6; }
   .metricPanel { grid-column: span 4; }
   .groupsGrid { grid-template-columns: repeat(3, 1fr); }
+  .todayGrid { grid-template-columns: 1fr; }
+  .todayMatchesPanel,
+  .todayRankPanel {
+    grid-column: 1;
+  }
+  .todayRankPanel {
+    position: static;
+  }
+  .adminMatchRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .adminStatusControl,
+  .adminSaveBtn {
+    grid-column: 2;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2002,6 +2401,39 @@ button { cursor: pointer; border: 0; }
   .toast { max-width: 100%; }
   .navTabs button { font-size: 11px; padding: 0 6px; }
   .groupsGrid { grid-template-columns: 1fr; }
+  .topbar {
+    align-items: flex-start;
+  }
+  .topbarActions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .todayHero {
+    grid-template-columns: 1fr;
+  }
+  .todayHeroStats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+  .adminHeaderPanel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .adminHeaderActions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .adminMatchRow {
+    grid-template-columns: 1fr;
+  }
+  .adminStatusControl,
+  .adminSaveBtn {
+    grid-column: auto;
+  }
+  .adminStatusControl select,
+  .adminSaveBtn {
+    width: 100%;
+  }
 }
 
 @media (max-width: 520px) {
@@ -2059,6 +2491,63 @@ button { cursor: pointer; border: 0; }
     min-width: 15px;
     height: 15px;
     font-size: 9px;
+  }
+
+  .topbarLink span {
+    display: none;
+  }
+
+  .topbarLink {
+    width: 36px;
+    padding: 0;
+  }
+
+  .todayHero {
+    gap: 14px;
+    padding: 18px;
+  }
+
+  .todayHeroStats {
+    gap: 7px;
+  }
+
+  .todayStat {
+    min-height: 76px;
+    padding: 10px;
+  }
+
+  .todayStat span {
+    font-size: 22px;
+  }
+
+  .adminHeaderPanel {
+    padding: 18px;
+  }
+
+  .adminHeaderActions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .adminRefreshBtn,
+  .adminSyncBtn {
+    width: 100%;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .adminTeams {
+    grid-template-columns: 1fr;
+  }
+
+  .adminScoreControls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: end;
+  }
+
+  .adminScoreControls input {
+    width: 100%;
   }
 
   .subFilterBar {
