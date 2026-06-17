@@ -43,6 +43,7 @@ const FLAG_BY_CODE = {
 };
 
 const PREDICTION_LOCK_LEAD_MS = 5 * 60_000;
+const AVATAR_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6'];
 
 function sameJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -131,6 +132,12 @@ function formatLocalDateKey(value) {
   }).format(new Date(value));
 }
 
+function avatarColor(id = '') {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+
 function MatchStatusBadge({ match }) {
   if (isHalftime(match)) return <span className="statusBadge halftime">Intervalo</span>;
   if (isLikelyLive(match)) return <span className="statusBadge live">● Ao vivo</span>;
@@ -178,11 +185,56 @@ function ScoreOrVs({ match }) {
   );
 }
 
-function MatchSpotlightCard({ match, teams, prediction, now, featured = false }) {
+function MatchPredictionsPanel({ matchId, poolId, token, myUserId, refreshKey }) {
+  const [state, setState] = useState({ data: null, loading: true, error: null });
+
+  useEffect(() => {
+    let active = true;
+    setState({ data: null, loading: true, error: null });
+    api(`/pools/${poolId}/matches/${matchId}/predictions`, token)
+      .then(({ predictions: matchPredictions }) => {
+        if (active) setState({ data: matchPredictions, loading: false, error: null });
+      })
+      .catch((e) => {
+        if (active) setState({ data: null, loading: false, error: e.message });
+      });
+    return () => {
+      active = false;
+    };
+  }, [matchId, poolId, token, refreshKey]);
+
+  if (state.loading) return <div className="predsLoading">Carregando palpites...</div>;
+  if (state.error) return <div className="predsEmpty">Erro ao carregar.</div>;
+  if (!state.data?.length) return <div className="predsEmpty">Nenhum palpite registrado.</div>;
+
+  return (
+    <ul className="predsList">
+      {state.data.map((p) => {
+        const cls = p.points === 5 ? 'exact' : p.points > 0 ? 'partial' : 'zero';
+        const userName = p.userName ?? 'Usuário';
+        return (
+          <li key={p.userId} className={`predRow${p.userId === myUserId ? ' me' : ''}`}>
+            <div className="predAvatar" style={{ background: avatarColor(p.userId) }}>
+              {userName.charAt(0).toUpperCase() || '?'}
+            </div>
+            <span className="predName">{p.userId === myUserId ? `${userName} (você)` : userName}</span>
+            <span className="predScore">{p.homeGoals} × {p.awayGoals}</span>
+            <span className={`predPts ${cls}`}>
+              {p.points === 5 ? '★ ' : ''}{p.points} pts
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function MatchSpotlightCard({ match, teams, prediction, now, selectedPoolId, token, myUserId, featured = false }) {
   const home = teamById(teams, match.homeTeamId);
   const away = teamById(teams, match.awayTeamId);
   const urgency = getUrgency(match, now);
   const inProgress = isLikelyLive(match, now);
+  const canViewMatchPredictions = inProgress && Boolean(selectedPoolId && token);
   const countdown = urgency === 'urgent' || urgency === 'warning'
     ? formatCountdown(match, now)
     : null;
@@ -235,6 +287,19 @@ function MatchSpotlightCard({ match, teams, prediction, now, featured = false })
           )}
         </div>
       </div>
+
+      {canViewMatchPredictions && (
+        <div className="matchPredictionsWrap">
+          <div className="todayPredictionsTitle">Palpites dos jogadores</div>
+          <MatchPredictionsPanel
+            matchId={match.id}
+            poolId={selectedPoolId}
+            token={token}
+            myUserId={myUserId}
+            refreshKey={`${match.status}:${match.homeGoals ?? ''}:${match.awayGoals ?? ''}`}
+          />
+        </div>
+      )}
     </article>
   );
 }
@@ -288,6 +353,7 @@ export default function TodayPage() {
   const [matches, setMatches] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [predictions, setPredictions] = useState([]);
+  const [selectedPoolId, setSelectedPoolId] = useState('');
   const [theme, setTheme] = useState('dark');
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState('');
@@ -318,6 +384,7 @@ export default function TodayPage() {
       api('/pools/active', nextToken),
     ]);
     setProfile(me.user);
+    setSelectedPoolId(poolData.pool.id);
     const [rankData, predData] = await Promise.all([
       api(`/pools/${poolData.pool.id}/leaderboard`, nextToken),
       api(`/pools/${poolData.pool.id}/predictions`, nextToken),
@@ -338,6 +405,7 @@ export default function TodayPage() {
           setProfile(null);
           setLeaderboard([]);
           setPredictions([]);
+          setSelectedPoolId('');
           return;
         }
         setUser(nextUser);
@@ -487,6 +555,9 @@ export default function TodayPage() {
                     teams={teams}
                     prediction={predictionsByMatch[match.id]}
                     now={now}
+                    selectedPoolId={selectedPoolId}
+                    token={token}
+                    myUserId={profile?.id}
                     featured
                   />
                 ))}
@@ -502,6 +573,9 @@ export default function TodayPage() {
                     teams={teams}
                     prediction={predictionsByMatch[match.id]}
                     now={now}
+                    selectedPoolId={selectedPoolId}
+                    token={token}
+                    myUserId={profile?.id}
                   />
                 ))}
               </div>
