@@ -240,6 +240,7 @@ export function createRouter(store, options = {}) {
     route('POST', /^\/admin\/sync$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
       requireAdmin(user);
+      assert(store.kind === 'firestore', 500, 'Sync admin deve rodar com DATA_STORE=firestore para persistir no Firebase');
 
       const providerStatus = liveScoreProvider.getStatus();
       const result = await orchestrate({ force: true });

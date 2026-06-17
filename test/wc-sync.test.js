@@ -177,6 +177,19 @@ test('force permite rodar live mesmo com lastLive fresco', () => {
   }), true);
 });
 
+test('force manual roda live mesmo fora da janela local', () => {
+  const recent = new Date().toISOString();
+
+  assert.equal(shouldRunLiveSync({
+    force: true,
+    liveInterval: 10,
+    lastLive: recent,
+    hasMatchesToday: false,
+    hasLiveNow: false,
+    insideLiveWindow: false,
+  }), true);
+});
+
 test('buildSyncLogEntry monta log resumido sem payload bruto', () => {
   const entry = buildSyncLogEntry({
     startedAt: '2026-06-09T18:00:00.000Z',

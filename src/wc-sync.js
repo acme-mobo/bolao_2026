@@ -556,14 +556,19 @@ export function getStandingsSyncSource(client, liveProvider) {
 }
 
 export function shouldRunLiveSync({ force = false, liveInterval, lastLive, hasMatchesToday, hasLiveNow, insideLiveWindow }) {
-  return liveInterval !== null
-    && (force || minutesSince(lastLive) > liveInterval)
+  if (liveInterval === null) return false;
+  if (force) return true;
+  return minutesSince(lastLive) > liveInterval
     && hasMatchesToday
     && (hasLiveNow || insideLiveWindow);
 }
 
 // ─── Orquestrador principal ───────────────────────────
 export async function orchestrate(options = {}) {
+  if (store.kind !== 'firestore') {
+    throw new Error('Sync deve rodar com DATA_STORE=firestore para persistir no Firebase');
+  }
+
   const force = options.force === true;
   const startedAt = new Date().toISOString();
   const globalLocked = await acquireLock('sync');
