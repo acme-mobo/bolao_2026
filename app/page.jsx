@@ -180,10 +180,8 @@ function avatarColor(id = '') {
 
 function ScoringRulesModal({ onClose }) {
   const rules = [
-    { pts: 10, label: 'Placar exato', desc: 'Acertou o placar completo — vale para vitórias e empates', highlight: true },
-    { pts: 7, label: 'Saldo + vencedor', desc: 'Acertou quem vence ou empata e a diferença de gols' },
-    { pts: 5, label: 'Gols + vencedor', desc: 'Acertou os gols de um time e quem vence ou empata' },
-    { pts: 3, label: 'Vencedor / empate', desc: 'Acertou quem vence ou que o jogo termina empatado' },
+    { pts: 5, label: 'Placar exato', desc: 'Acertou o placar completo — vale para vitórias e empates', highlight: true },
+    { pts: 3, label: 'Vencedor / empate', desc: 'Acertou quem vence ou que o jogo termina empatado, sem placar exato' },
   ];
   return (
     <div className="modalOverlay" role="dialog" aria-modal="true"
@@ -192,7 +190,7 @@ function ScoringRulesModal({ onClose }) {
         <div className="modalHead">
           <div className="modalHeadIcon"><Trophy size={20} /></div>
           <h3>Regras de Pontuação</h3>
-          <p>Cada jogo vale no máximo 10 pts. Palpites fecham no início da partida.</p>
+          <p>Cada jogo vale no máximo 5 pts. Palpites fecham no início da partida.</p>
         </div>
         <div className="modalBody">
           <div className="rulesTable">

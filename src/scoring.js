@@ -1,8 +1,6 @@
 import { findMatchByReference } from './match-reference.js';
 
-export const EXACT_SCORE_POINTS = 10;
-export const GOAL_DIFFERENCE_AND_OUTCOME_POINTS = 7;
-export const TEAM_GOALS_AND_OUTCOME_POINTS = 5;
+export const EXACT_SCORE_POINTS = 5;
 export const CORRECT_OUTCOME_POINTS = 3;
 
 export function hasMatchResult(match) {
@@ -31,11 +29,7 @@ export function scorePrediction(match, prediction) {
 
   const outcome     = matchOutcome(mH, mA);
   const predOutcome = matchOutcome(pH, pA);
-  if (predOutcome !== outcome) return 0;
-
-  if ((pH - pA) === (mH - mA)) return GOAL_DIFFERENCE_AND_OUTCOME_POINTS;
-  if (pH === mH || pA === mA) return TEAM_GOALS_AND_OUTCOME_POINTS;
-  return CORRECT_OUTCOME_POINTS;
+  return predOutcome === outcome ? CORRECT_OUTCOME_POINTS : 0;
 }
 
 export function buildLeaderboard(db, poolId) {
