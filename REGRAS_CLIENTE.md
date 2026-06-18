@@ -206,34 +206,36 @@ Regras (em ordem de prioridade):
 
 | Pontos | Condicao |
 | ---: | --- |
-| 5 | Placar exato — vale para vitorias e empates |
-| 3 | Vencedor correto — ou empate correto sem placar exato |
+| 10 | Placar exato — vale para vitorias e empates |
+| 7 | Saldo de gols e vencedor corretos — ou empate correto com outro placar |
+| 5 | Gols de uma equipe e vencedor corretos |
+| 3 | Apenas vencedor correto — ou empate correto sem placar exato |
 | 0 | Resultado incorreto, ou jogo ainda sem placar oficial |
 
 Exemplos considerando resultado real `Brasil 2 x 1 Marrocos`:
 
 | Palpite | Pontos | Motivo |
 | --- | ---: | --- |
-| 2 x 1 | 5 | Placar exato |
-| 3 x 2 | 3 | Vencedor correto, placar diferente |
-| 1 x 0 | 3 | Vencedor correto, placar diferente |
-| 2 x 0 | 3 | Vencedor correto, placar diferente |
-| 3 x 1 | 3 | Vencedor correto, placar diferente |
-| 3 x 0 | 3 | Vencedor correto, placar diferente |
+| 2 x 1 | 10 | Placar exato |
+| 3 x 2 | 7 | Vencedor e saldo de gols corretos |
+| 1 x 0 | 7 | Vencedor e saldo de gols corretos |
+| 2 x 0 | 5 | Vencedor correto e gols do Brasil corretos |
+| 3 x 1 | 5 | Vencedor correto e gols do Marrocos corretos |
+| 3 x 0 | 3 | Apenas vencedor correto |
 | 0 x 1 | 0 | Resultado incorreto |
 
 Exemplo de empate — resultado real `Argentina 1 x 1 Austria`:
 
 | Palpite | Pontos | Motivo |
 | --- | ---: | --- |
-| 1 x 1 | 5 | Placar exato |
-| 0 x 0 | 3 | Empate acertado, placar diferente |
-| 2 x 2 | 3 | Empate acertado, placar diferente |
+| 1 x 1 | 10 | Placar exato |
+| 0 x 0 | 7 | Empate e saldo zero corretos |
+| 2 x 2 | 7 | Empate e saldo zero corretos |
 | 2 x 1 | 0 | Resultado incorreto |
 
 Observacoes:
 
-- Nao existem pontos intermediarios por saldo de gols ou gols de uma equipe.
+- Pontuacoes intermediarias exigem que o vencedor ou empate tambem esteja correto.
 - Sem resultado oficial, o palpite vale 0 temporariamente.
 
 ## Ranking

@@ -195,8 +195,10 @@ O MVP trabalha com um unico bolao ativo. Ao autenticar, o app chama `GET /api/po
 
 ## Pontuacao
 
-- 5 pontos: placar exato.
-- 3 pontos: acerto do vencedor ou empate sem placar exato.
+- 10 pontos: placar exato.
+- 7 pontos: acerto do vencedor ou empate e do saldo de gols.
+- 5 pontos: acerto dos gols de um dos times e do vencedor ou empate.
+- 3 pontos: acerto apenas do vencedor ou empate.
 - 0 pontos: resultado incorreto ou jogo sem placar oficial.
 
 O desempate do ranking usa o maior numero de placares exatos.
