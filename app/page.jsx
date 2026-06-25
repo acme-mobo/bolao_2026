@@ -250,11 +250,7 @@ function groupMatchesByKnockoutStage(sourceMatches) {
 }
 
 function groupMatchesForBracket(sourceMatches) {
-  const stages = groupMatchesByKnockoutStage(sourceMatches)
-    .map((stage, stageIndex, allStages) => ({
-      ...stage,
-      groups: groupMatchesByAdvancement(stage, allStages, stageIndex),
-    }));
+  const stages = positionBracketStages(groupMatchesByKnockoutStage(sourceMatches));
   const finalStage = stages.find((stage) => stage.key === 'final');
   const thirdPlaceStage = stages.find((stage) => stage.key === 'third-place');
 
@@ -265,61 +261,92 @@ function groupMatchesForBracket(sourceMatches) {
     {
       key: 'finals',
       label: 'Final e 3º lugar',
-      matches: [...finalStage.matches, ...thirdPlaceStage.matches],
-      groups: [
-        { key: 'final', label: 'Final', matches: finalStage.matches },
-        { key: 'third-place', label: '3º lugar', matches: thirdPlaceStage.matches },
-      ],
+      matches: spreadOverlappingBracketSlots([...finalStage.matches, ...thirdPlaceStage.matches]),
     },
   ];
 }
 
-function winnerSourceMatchNumbers(match) {
+function sourceMatchNumbers(match) {
   return [match?.homeSlot, match?.awaySlot].flatMap((slot) => {
     const normalized = normalizeStage(slot);
-    if (!normalized.includes('vencedor') && !normalized.includes('winner')) return [];
+    const isPathSlot = ['vencedor', 'perdedor', 'winner', 'loser'].some((word) => normalized.includes(word));
+    if (!isPathSlot) return [];
     return [...String(slot).matchAll(/\d+/g)].map(([value]) => Number(value));
   });
 }
 
-function groupMatchesByAdvancement(stage, stages, stageIndex) {
-  if (stage.key === 'final' || stage.key === 'third-place') {
-    return [{ key: stage.key, label: null, matches: stage.matches }];
-  }
+function orderMatchesByNextRound(matches, nextStages) {
+  const byMatchNumber = new Map(matches.map((match) => [Number(match.matchNumber), match]));
+  const seen = new Set();
+  const ordered = [];
 
-  const currentMatches = new Map(stage.matches.map((match) => [Number(match.matchNumber), match]));
-  const groupedMatchNumbers = new Set();
-  const groups = [];
-
-  for (const targetStage of stages.slice(stageIndex + 1)) {
+  for (const targetStage of nextStages) {
     for (const targetMatch of targetStage.matches) {
-      const sourceMatches = winnerSourceMatchNumbers(targetMatch)
-        .map((matchNumber) => currentMatches.get(matchNumber))
+      const sourceMatches = sourceMatchNumbers(targetMatch)
+        .map((matchNumber) => byMatchNumber.get(matchNumber))
         .filter(Boolean);
 
-      if (sourceMatches.length === 0) continue;
-
-      sourceMatches.forEach((match) => groupedMatchNumbers.add(Number(match.matchNumber)));
-      groups.push({
-        key: `${targetStage.key}-${targetMatch.matchNumber}`,
-        label: `Para ${KNOCKOUT_STAGE_LABELS[targetStage.key]} #${targetMatch.matchNumber}`,
-        matches: sourceMatches.sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0)),
-      });
+      for (const match of sourceMatches) {
+        const matchNumber = Number(match.matchNumber);
+        if (seen.has(matchNumber)) continue;
+        seen.add(matchNumber);
+        ordered.push(match);
+      }
     }
   }
 
-  const ungroupedMatches = stage.matches.filter((match) => !groupedMatchNumbers.has(Number(match.matchNumber)));
-  if (ungroupedMatches.length > 0) {
-    groups.push({
-      key: `${stage.key}-pending-path`,
-      label: 'Próxima fase a definir',
-      matches: ungroupedMatches,
+  const leftovers = matches.filter((match) => !seen.has(Number(match.matchNumber)));
+  return [...ordered, ...leftovers];
+}
+
+function fallbackBracketSlot(index, matchCount, baseCount) {
+  if (baseCount <= 1) return 0;
+  if (matchCount <= 1) return (baseCount - 1) / 2;
+  return index * ((baseCount - 1) / (matchCount - 1));
+}
+
+function positionBracketStages(stages) {
+  const orderedStages = stages.map((stage, stageIndex) => ({
+    ...stage,
+    matches: orderMatchesByNextRound(stage.matches, stages.slice(stageIndex + 1)),
+  }));
+  const baseCount = orderedStages[0]?.matches.length ?? 0;
+  const slotByMatchNumber = new Map();
+
+  return orderedStages.map((stage, stageIndex) => {
+    const matches = stage.matches.map((match, matchIndex) => {
+      const sourceSlots = sourceMatchNumbers(match)
+        .map((matchNumber) => slotByMatchNumber.get(matchNumber))
+        .filter((slot) => Number.isFinite(slot));
+      const bracketSlot = sourceSlots.length > 0
+        ? sourceSlots.reduce((sum, slot) => sum + slot, 0) / sourceSlots.length
+        : fallbackBracketSlot(matchIndex, stage.matches.length, baseCount);
+      slotByMatchNumber.set(Number(match.matchNumber), bracketSlot);
+      return { ...match, bracketSlot };
     });
+
+    return {
+      ...stage,
+      matches: stageIndex === 0 ? matches : matches.sort((a, b) => a.bracketSlot - b.bracketSlot),
+    };
+  });
+}
+
+function spreadOverlappingBracketSlots(matches) {
+  const bySlot = new Map();
+  for (const match of matches) {
+    const key = String(match.bracketSlot ?? 0);
+    bySlot.set(key, [...(bySlot.get(key) ?? []), match]);
   }
 
-  return groups.length > 0
-    ? groups
-    : [{ key: `${stage.key}-matches`, label: null, matches: stage.matches }];
+  return [...bySlot.values()].flatMap((slotMatches) => {
+    if (slotMatches.length === 1) return slotMatches;
+    const centerOffset = (slotMatches.length - 1) / 2;
+    return slotMatches.map((match, index) => ({
+      ...match,
+      bracketSlot: (match.bracketSlot ?? 0) + ((index - centerOffset) * 1.05),
+    }));
+  }).sort((a, b) => a.bracketSlot - b.bracketSlot);
 }
 
 // ─── Sub-components ───────────────────────────────────
@@ -663,8 +690,14 @@ function BracketTeam({ team, score, winner }) {
   );
 }
 
+const BRACKET_CARD_HEIGHT = 126;
+const BRACKET_CARD_MID = BRACKET_CARD_HEIGHT / 2;
+const BRACKET_STEP = 150;
+
 function KnockoutBracket({ matches, teams }) {
   const stages = groupMatchesForBracket(matches);
+  const baseMatchCount = stages[0]?.matches.length ?? 0;
+  const bracketBoardHeight = BRACKET_CARD_HEIGHT + (Math.max(baseMatchCount, 1) - 1) * BRACKET_STEP;
 
   if (stages.length === 0) {
     return <div className="emptyState">Jogos de mata-mata ainda não disponíveis.</div>;
@@ -672,45 +705,39 @@ function KnockoutBracket({ matches, teams }) {
 
   return (
     <div className="bracketViewport">
-      <div className="bracketBoard" style={{ '--round-count': stages.length }}>
-        {stages.map(({ key, label, matches: stageMatches, groups }, stageIndex) => (
+      <div
+        className="bracketBoard"
+        style={{ '--round-count': stages.length, '--bracket-board-height': `${bracketBoardHeight}px` }}
+      >
+        {stages.map(({ key, label, matches: stageMatches }, stageIndex) => (
           <section key={key} className={`bracketRound${key === 'finals' ? ' finalRound' : ''}`}>
             <div className="bracketRoundHead">
               <span>{label}</span>
               <small>{stageMatches.length} jogo{stageMatches.length > 1 ? 's' : ''}</small>
             </div>
             <div className="bracketRoundMatches">
-              {groups.map((group) => (
-                <div
-                  key={group.key}
-                  className={`bracketAdvanceGroup${stageIndex < stages.length - 1 ? ' connected' : ''}`}
-                >
-                  {group.label && <div className="bracketAdvanceLabel">{group.label}</div>}
-                  <div className="bracketAdvanceMatches">
-                    {group.matches.map((match) => {
-                      const home = bracketTeamInfo(match, teams, 'home');
-                      const away = bracketTeamInfo(match, teams, 'away');
-                      const winner = matchWinnerSide(match);
-                      return (
-                        <article
-                          key={match.id}
-                          className="bracketMatch"
-                        >
-                          <div className="bracketMatchMeta">
-                            <span>#{match.matchNumber}</span>
-                            <time>{formatMatchDate(match.startsAt)}</time>
-                          </div>
-                          <BracketTeam team={home} score={match.homeGoals} winner={winner === 'home'} />
-                          <BracketTeam team={away} score={match.awayGoals} winner={winner === 'away'} />
-                          <div className="bracketVenue">
-                            {match.city}{match.venue ? ` · ${match.venue}` : ''}
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+              {stageMatches.map((match) => {
+                const home = bracketTeamInfo(match, teams, 'home');
+                const away = bracketTeamInfo(match, teams, 'away');
+                const winner = matchWinnerSide(match);
+                return (
+                  <article
+                    key={match.id}
+                    className={`bracketMatch${stageIndex < stages.length - 1 ? ' connected' : ''}`}
+                    style={{ '--bracket-top': `${BRACKET_CARD_MID + ((match.bracketSlot ?? 0) * BRACKET_STEP)}px` }}
+                  >
+                    <div className="bracketMatchMeta">
+                      <span>#{match.matchNumber}</span>
+                      <time>{formatMatchDate(match.startsAt)}</time>
+                    </div>
+                    <BracketTeam team={home} score={match.homeGoals} winner={winner === 'home'} />
+                    <BracketTeam team={away} score={match.awayGoals} winner={winner === 'away'} />
+                    <div className="bracketVenue">
+                      {match.city}{match.venue ? ` · ${match.venue}` : ''}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </section>
         ))}
