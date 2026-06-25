@@ -302,7 +302,7 @@ function groupMatchesByAdvancement(stage, stages, stageIndex) {
       sourceMatches.forEach((match) => groupedMatchNumbers.add(Number(match.matchNumber)));
       groups.push({
         key: `${targetStage.key}-${targetMatch.matchNumber}`,
-        label: `Avançam para ${KNOCKOUT_STAGE_LABELS[targetStage.key]} #${targetMatch.matchNumber}`,
+        label: `Para ${KNOCKOUT_STAGE_LABELS[targetStage.key]} #${targetMatch.matchNumber}`,
         matches: sourceMatches.sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0)),
       });
     }
@@ -681,7 +681,10 @@ function KnockoutBracket({ matches, teams }) {
             </div>
             <div className="bracketRoundMatches">
               {groups.map((group) => (
-                <div key={group.key} className="bracketAdvanceGroup">
+                <div
+                  key={group.key}
+                  className={`bracketAdvanceGroup${stageIndex < stages.length - 1 ? ' connected' : ''}`}
+                >
                   {group.label && <div className="bracketAdvanceLabel">{group.label}</div>}
                   <div className="bracketAdvanceMatches">
                     {group.matches.map((match) => {
@@ -691,7 +694,7 @@ function KnockoutBracket({ matches, teams }) {
                       return (
                         <article
                           key={match.id}
-                          className={`bracketMatch${stageIndex < stages.length - 1 ? ' connected' : ''}`}
+                          className="bracketMatch"
                         >
                           <div className="bracketMatchMeta">
                             <span>#{match.matchNumber}</span>
