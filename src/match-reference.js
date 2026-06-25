@@ -38,3 +38,7 @@ export function predictionLockTime(match) {
 export function isPredictionOpen(match, nowMs = Date.now()) {
   return predictionLockTime(match) > nowMs;
 }
+
+export function hasMatchTeamsDefined(match) {
+  return Boolean(match?.homeTeamId && match?.awayTeamId);
+}

@@ -854,6 +854,34 @@ button { cursor: pointer; border: 0; }
 .sidePanel   { grid-column: span 4; }
 .groupsPanel { grid-column: 1 / -1; }
 
+.panelSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 30px;
+  padding: 3px;
+  margin-left: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--bg2);
+}
+
+.panelSwitch button {
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.panelSwitch button.active {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
 /* ═══════════════════════════════════════════════════
    Today page
 ═══════════════════════════════════════════════════ */
@@ -1398,6 +1426,10 @@ button { cursor: pointer; border: 0; }
   background: var(--line-strong);
 }
 
+.stageSep {
+  color: var(--text);
+}
+
 /* ═══════════════════════════════════════════════════
    Match card
 ═══════════════════════════════════════════════════ */
@@ -1489,6 +1521,11 @@ button { cursor: pointer; border: 0; }
   letter-spacing: 0.3px;
 }
 
+.knockoutBadge {
+  background: rgba(245,166,35,0.12);
+  color: var(--gold);
+}
+
 .matchTime { font-variant-numeric: tabular-nums; }
 
 /* ─── Countdown chip ─────────────────────────────── */
@@ -1530,7 +1567,32 @@ button { cursor: pointer; border: 0; }
   line-height: 1.1;
 }
 
+.pendingFlag {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.teamBlock.away .pendingFlag {
+  justify-self: end;
+}
+
 .gameCard .teamFlag { font-size: 32px; }
+
+.gameCard .pendingFlag {
+  min-height: 32px;
+  font-size: 11px;
+}
 
 .teamCode {
   font-size: 17px;
@@ -1923,6 +1985,170 @@ button { cursor: pointer; border: 0; }
 
 .groupTeamName {
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════
+   Knockout bracket
+═══════════════════════════════════════════════════ */
+.bracketViewport {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.bracketBoard {
+  --round-count: 6;
+  display: grid;
+  grid-template-columns: repeat(var(--round-count), minmax(218px, 1fr));
+  gap: 18px;
+  min-width: 1360px;
+  align-items: stretch;
+}
+
+.bracketRound {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+}
+
+.bracketRoundHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 2px 8px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.bracketRoundHead span {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.bracketRoundHead small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bracketRoundMatches {
+  display: grid;
+  align-content: space-around;
+  gap: 10px;
+  min-height: 100%;
+  padding-top: 12px;
+}
+
+.bracketMatch {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.025), transparent),
+    var(--bg2);
+}
+
+.bracketMatch.connected::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -19px;
+  width: 18px;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.bracketMatchMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.bracketMatchMeta time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bracketTeam {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.bracketTeam.winner {
+  border-color: rgba(245,166,35,0.4);
+  background: var(--gold-dim);
+}
+
+.bracketFlag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 27px;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.bracketTeamText {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.bracketTeamText strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.bracketTeamText span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracketScore {
+  min-width: 18px;
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 900;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bracketVenue {
+  min-width: 0;
+  padding: 2px 1px 0;
+  color: var(--muted-dim);
+  font-size: 10px;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2367,6 +2593,10 @@ button { cursor: pointer; border: 0; }
   .sidePanel  { grid-column: span 6; }
   .metricPanel { grid-column: span 4; }
   .groupsGrid { grid-template-columns: repeat(3, 1fr); }
+  .bracketBoard {
+    grid-template-columns: repeat(var(--round-count), minmax(210px, 1fr));
+    min-width: 1280px;
+  }
   .todayGrid { grid-template-columns: 1fr; }
   .todayMatchesPanel,
   .todayRankPanel {
@@ -2409,6 +2639,10 @@ button { cursor: pointer; border: 0; }
   .toast { max-width: 100%; }
   .navTabs button { font-size: 11px; padding: 0 6px; }
   .groupsGrid { grid-template-columns: 1fr; }
+  .bracketBoard {
+    grid-template-columns: repeat(var(--round-count), 204px);
+    min-width: max-content;
+  }
   .topbar {
     align-items: flex-start;
   }
@@ -2450,8 +2684,19 @@ button { cursor: pointer; border: 0; }
   }
 
   .panelTitle {
+    flex-wrap: wrap;
     margin-bottom: 10px;
     padding-bottom: 10px;
+  }
+
+  .panelSwitch {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .panelSwitch button {
+    flex: 1;
   }
 
   .summaryPanel {
@@ -2579,6 +2824,24 @@ button { cursor: pointer; border: 0; }
     grid-template-columns: minmax(0, 1fr) repeat(6, 22px);
     gap: 4px;
     padding: 7px 9px;
+  }
+
+  .bracketViewport {
+    margin-left: -2px;
+    margin-right: -2px;
+  }
+
+  .bracketRoundHead span {
+    font-size: 11px;
+  }
+
+  .bracketMatch {
+    padding: 8px;
+  }
+
+  .bracketTeam {
+    min-height: 32px;
+    padding: 5px 6px;
   }
 
   .matchCardHead {

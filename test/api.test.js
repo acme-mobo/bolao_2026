@@ -321,6 +321,48 @@ test('predictions bloqueia apostas nos 5 minutos antes do inicio', async () => {
   );
 });
 
+test('predictions bloqueia apostas em jogo de mata-mata sem times definidos', async () => {
+  const api = await createApi();
+  const register = await request(api, '/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Vagner', email: 'undefined-knockout@example.com', password: '12345678' }),
+  });
+  const token = register.body.token;
+  const userId = register.body.user.id;
+  const startsAt = new Date(Date.now() + 10 * 24 * 60 * 60_000).toISOString();
+
+  await api.store.transaction((db) => {
+    db.matches = [
+      {
+        id: 'match_90',
+        matchNumber: 90,
+        homeTeamId: null,
+        awayTeamId: null,
+        homeSlot: 'Vencedor Jogo 73',
+        awaySlot: 'Vencedor Jogo 75',
+        stage: 'round-of-16',
+        group: null,
+        startsAt,
+        lockAt: startsAt,
+        status: 'scheduled',
+        homeGoals: null,
+        awayGoals: null,
+      },
+    ];
+    db.pools = [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: userId, isActive: true }];
+    db.memberships = [{ poolId: 'pool_copa_2026', userId, joinedAt: '2026-06-01T00:00:00.000Z' }];
+  });
+
+  await assert.rejects(
+    () => request(api, '/pools/pool_copa_2026/predictions', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+      body: JSON.stringify({ matchId: 'match_90', homeGoals: 2, awayGoals: 1 }),
+    }),
+    (error) => error.status === 409 && error.message === 'Jogo ainda sem times definidos para apostas',
+  );
+});
+
 test('leaderboard recalcula pontos com placar de jogo em andamento', async () => {
   const api = await createApi();
   const register = await request(api, '/auth/register', {

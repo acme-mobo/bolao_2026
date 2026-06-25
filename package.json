@@ -18,6 +18,7 @@
     "api:dev": "NODE_ENV=development node src/server.js",
     "build": "next build",
     "seed": "node src/seed.js",
+    "seed:knockout": "node src/seed-knockout-matches.js",
     "purge": "node src/purge-users.js",
     "test": "NODE_ENV=test node --test"
   },

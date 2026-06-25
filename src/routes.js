@@ -3,7 +3,12 @@ import { assert } from './errors.js';
 import { newId } from './id.js';
 import { notFound, parseUrl, readJson, sanitizeUser, send } from './http.js';
 import { createLiveScoreProvider, syncLiveScores } from './live-score.js';
-import { findMatchByReference, isPredictionOpen, predictionBelongsToMatch } from './match-reference.js';
+import {
+  findMatchByReference,
+  hasMatchTeamsDefined,
+  isPredictionOpen,
+  predictionBelongsToMatch,
+} from './match-reference.js';
 import { buildLeaderboard, scorePrediction } from './scoring.js';
 import { optionalDate, requireEmail, requireInteger, requireString } from './validation.js';
 import { buildCompactSyncResponse, orchestrate } from './wc-sync.js';
@@ -421,6 +426,7 @@ export function createRouter(store, options = {}) {
         );
         const match = findMatchByReference(currentDb.matches, matchId);
         assert(match, 404, 'Jogo nao encontrado');
+        assert(hasMatchTeamsDefined(match), 409, 'Jogo ainda sem times definidos para apostas');
         assert(isPredictionOpen(match), 409, 'Palpites encerrados para este jogo');
 
         const existing = currentDb.predictions.find(

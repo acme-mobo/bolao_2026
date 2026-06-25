@@ -167,6 +167,18 @@ function RankPosition({ rank }) {
   return <span className="rankPos">{rank}</span>;
 }
 
+function isBotLeaderboardRow(row) {
+  const values = [row?.userId, row?.username, row?.name, row?.email]
+    .filter(Boolean)
+    .map((value) => String(value).trim().toLowerCase());
+  return values.some((value) => value === 'gpt'
+    || value === 'claude'
+    || value === 'mvp-player-gpt'
+    || value === 'mvp-player-claude'
+    || value === 'gpt@bolao26.local'
+    || value === 'claude@bolao26.local');
+}
+
 function ScoreOrVs({ match }) {
   const hasScore = match.homeGoals != null && match.awayGoals != null;
 
@@ -305,13 +317,15 @@ function MatchSpotlightCard({ match, teams, prediction, now, selectedPoolId, tok
 }
 
 function RankingPanel({ leaderboard, profileId }) {
+  const visibleLeaderboard = leaderboard.filter((row) => !isBotLeaderboardRow(row));
+
   return (
     <section className="panel todayRankPanel">
       <div className="panelTitle">
         <div className="titleIcon"><Trophy size={13} /></div>
         <h2>Ranking</h2>
       </div>
-      {leaderboard.length ? (
+      {visibleLeaderboard.length ? (
         <>
           <div className="rankHeader">
             <span />
@@ -320,8 +334,8 @@ function RankingPanel({ leaderboard, profileId }) {
             <span className="rankHeaderStat" title="Placares exatos">E</span>
           </div>
           <ol className="leaderboard">
-            {leaderboard.map((row, i) => {
-              const rank = getDenseLeaderboardRank(leaderboard, i);
+            {visibleLeaderboard.map((row, i) => {
+              const rank = getDenseLeaderboardRank(visibleLeaderboard, i);
               return (
                 <li key={row.userId} className={row.userId === profileId ? 'me' : ''}>
                   <RankPosition rank={rank} />
