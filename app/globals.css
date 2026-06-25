@@ -2045,6 +2045,12 @@ button { cursor: pointer; border: 0; }
   padding-top: 12px;
 }
 
+.bracketRound.finalRound .bracketRoundMatches {
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+}
+
 .bracketMatch {
   position: relative;
   display: grid;
@@ -2055,6 +2061,10 @@ button { cursor: pointer; border: 0; }
   background:
     linear-gradient(180deg, rgba(255,255,255,0.025), transparent),
     var(--bg2);
+}
+
+.bracketRound.finalRound .bracketMatch {
+  width: min(100%, 190px);
 }
 
 .bracketMatch.connected::after {

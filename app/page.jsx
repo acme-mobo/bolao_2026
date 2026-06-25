@@ -618,7 +618,7 @@ function KnockoutBracket({ matches, teams }) {
     <div className="bracketViewport">
       <div className="bracketBoard" style={{ '--round-count': stages.length }}>
         {stages.map(({ key, label, matches: stageMatches }, stageIndex) => (
-          <section key={key} className="bracketRound">
+          <section key={key} className={`bracketRound${key === 'finals' ? ' finalRound' : ''}`}>
             <div className="bracketRoundHead">
               <span>{label}</span>
               <small>{stageMatches.length} jogo{stageMatches.length > 1 ? 's' : ''}</small>
