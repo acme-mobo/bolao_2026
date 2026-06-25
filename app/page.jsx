@@ -1444,17 +1444,17 @@ export default function HomePage() {
                 <button role="tab" aria-selected={navMode === 'group'}
                   className={navMode === 'group' ? 'active' : ''}
                   onClick={() => setNavMode('group')}>
-                Por Grupo
-                </button>
-                <button role="tab" aria-selected={navMode === 'date'}
-                  className={navMode === 'date' ? 'active' : ''}
-                  onClick={() => setNavMode('date')}>
-                Por Data
+                Fase de Grupos
                 </button>
                 <button role="tab" aria-selected={navMode === 'knockout'}
                   className={navMode === 'knockout' ? 'active' : ''}
                   onClick={() => setNavMode('knockout')}>
                 Mata-mata
+                </button>
+                <button role="tab" aria-selected={navMode === 'date'}
+                  className={navMode === 'date' ? 'active' : ''}
+                  onClick={() => setNavMode('date')}>
+                Por Data
                 </button>
                 <button role="tab" aria-selected={navMode === 'pending'}
                   className={navMode === 'pending' ? 'active' : ''}
