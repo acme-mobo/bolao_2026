@@ -249,6 +249,23 @@ function groupMatchesByKnockoutStage(sourceMatches) {
     .filter((stage) => stage.matches.length > 0);
 }
 
+function groupMatchesForBracket(sourceMatches) {
+  const stages = groupMatchesByKnockoutStage(sourceMatches);
+  const finalStage = stages.find((stage) => stage.key === 'final');
+  const thirdPlaceStage = stages.find((stage) => stage.key === 'third-place');
+
+  if (!finalStage || !thirdPlaceStage) return stages;
+
+  return [
+    ...stages.filter((stage) => stage.key !== 'final' && stage.key !== 'third-place'),
+    {
+      key: 'finals',
+      label: 'Final e 3º lugar',
+      matches: [...finalStage.matches, ...thirdPlaceStage.matches],
+    },
+  ];
+}
+
 // ─── Sub-components ───────────────────────────────────
 const AVATAR_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f59e0b','#10b981','#06b6d4','#3b82f6'];
 function avatarColor(id = '') {
@@ -591,7 +608,7 @@ function BracketTeam({ team, score, winner }) {
 }
 
 function KnockoutBracket({ matches, teams }) {
-  const stages = groupMatchesByKnockoutStage(matches);
+  const stages = groupMatchesForBracket(matches);
 
   if (stages.length === 0) {
     return <div className="emptyState">Jogos de mata-mata ainda não disponíveis.</div>;

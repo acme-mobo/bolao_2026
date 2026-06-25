@@ -2001,9 +2001,9 @@ button { cursor: pointer; border: 0; }
 .bracketBoard {
   --round-count: 6;
   display: grid;
-  grid-template-columns: repeat(var(--round-count), minmax(218px, 1fr));
+  grid-template-columns: repeat(var(--round-count), minmax(180px, 1fr));
   gap: 18px;
-  min-width: 1360px;
+  min-width: 0;
   align-items: stretch;
 }
 
@@ -2594,8 +2594,7 @@ button { cursor: pointer; border: 0; }
   .metricPanel { grid-column: span 4; }
   .groupsGrid { grid-template-columns: repeat(3, 1fr); }
   .bracketBoard {
-    grid-template-columns: repeat(var(--round-count), minmax(210px, 1fr));
-    min-width: 1280px;
+    grid-template-columns: repeat(var(--round-count), minmax(170px, 1fr));
   }
   .todayGrid { grid-template-columns: 1fr; }
   .todayMatchesPanel,
