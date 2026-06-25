@@ -306,10 +306,17 @@ function fallbackBracketSlot(index, matchCount, baseCount) {
 }
 
 function positionBracketStages(stages) {
-  const orderedStages = stages.map((stage, stageIndex) => ({
-    ...stage,
-    matches: orderMatchesByNextRound(stage.matches, stages.slice(stageIndex + 1)),
-  }));
+  const orderedStages = stages.map((stage) => ({ ...stage, matches: stage.matches }));
+  for (let stageIndex = orderedStages.length - 1; stageIndex >= 0; stageIndex -= 1) {
+    orderedStages[stageIndex] = {
+      ...orderedStages[stageIndex],
+      matches: orderMatchesByNextRound(
+        orderedStages[stageIndex].matches,
+        orderedStages.slice(stageIndex + 1),
+      ),
+    };
+  }
+
   const baseCount = orderedStages[0]?.matches.length ?? 0;
   const slotByMatchNumber = new Map();
 
