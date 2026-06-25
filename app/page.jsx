@@ -250,7 +250,11 @@ function groupMatchesByKnockoutStage(sourceMatches) {
 }
 
 function groupMatchesForBracket(sourceMatches) {
-  const stages = groupMatchesByKnockoutStage(sourceMatches);
+  const stages = groupMatchesByKnockoutStage(sourceMatches)
+    .map((stage, stageIndex, allStages) => ({
+      ...stage,
+      groups: groupMatchesByAdvancement(stage, allStages, stageIndex),
+    }));
   const finalStage = stages.find((stage) => stage.key === 'final');
   const thirdPlaceStage = stages.find((stage) => stage.key === 'third-place');
 
@@ -262,8 +266,60 @@ function groupMatchesForBracket(sourceMatches) {
       key: 'finals',
       label: 'Final e 3º lugar',
       matches: [...finalStage.matches, ...thirdPlaceStage.matches],
+      groups: [
+        { key: 'final', label: 'Final', matches: finalStage.matches },
+        { key: 'third-place', label: '3º lugar', matches: thirdPlaceStage.matches },
+      ],
     },
   ];
+}
+
+function winnerSourceMatchNumbers(match) {
+  return [match?.homeSlot, match?.awaySlot].flatMap((slot) => {
+    const normalized = normalizeStage(slot);
+    if (!normalized.includes('vencedor') && !normalized.includes('winner')) return [];
+    return [...String(slot).matchAll(/\d+/g)].map(([value]) => Number(value));
+  });
+}
+
+function groupMatchesByAdvancement(stage, stages, stageIndex) {
+  if (stage.key === 'final' || stage.key === 'third-place') {
+    return [{ key: stage.key, label: null, matches: stage.matches }];
+  }
+
+  const currentMatches = new Map(stage.matches.map((match) => [Number(match.matchNumber), match]));
+  const groupedMatchNumbers = new Set();
+  const groups = [];
+
+  for (const targetStage of stages.slice(stageIndex + 1)) {
+    for (const targetMatch of targetStage.matches) {
+      const sourceMatches = winnerSourceMatchNumbers(targetMatch)
+        .map((matchNumber) => currentMatches.get(matchNumber))
+        .filter(Boolean);
+
+      if (sourceMatches.length === 0) continue;
+
+      sourceMatches.forEach((match) => groupedMatchNumbers.add(Number(match.matchNumber)));
+      groups.push({
+        key: `${targetStage.key}-${targetMatch.matchNumber}`,
+        label: `Avançam para ${KNOCKOUT_STAGE_LABELS[targetStage.key]} #${targetMatch.matchNumber}`,
+        matches: sourceMatches.sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0)),
+      });
+    }
+  }
+
+  const ungroupedMatches = stage.matches.filter((match) => !groupedMatchNumbers.has(Number(match.matchNumber)));
+  if (ungroupedMatches.length > 0) {
+    groups.push({
+      key: `${stage.key}-pending-path`,
+      label: 'Próxima fase a definir',
+      matches: ungroupedMatches,
+    });
+  }
+
+  return groups.length > 0
+    ? groups
+    : [{ key: `${stage.key}-matches`, label: null, matches: stage.matches }];
 }
 
 // ─── Sub-components ───────────────────────────────────
@@ -617,34 +673,41 @@ function KnockoutBracket({ matches, teams }) {
   return (
     <div className="bracketViewport">
       <div className="bracketBoard" style={{ '--round-count': stages.length }}>
-        {stages.map(({ key, label, matches: stageMatches }, stageIndex) => (
+        {stages.map(({ key, label, matches: stageMatches, groups }, stageIndex) => (
           <section key={key} className={`bracketRound${key === 'finals' ? ' finalRound' : ''}`}>
             <div className="bracketRoundHead">
               <span>{label}</span>
               <small>{stageMatches.length} jogo{stageMatches.length > 1 ? 's' : ''}</small>
             </div>
             <div className="bracketRoundMatches">
-              {stageMatches.map((match) => {
-                const home = bracketTeamInfo(match, teams, 'home');
-                const away = bracketTeamInfo(match, teams, 'away');
-                const winner = matchWinnerSide(match);
-                return (
-                  <article
-                    key={match.id}
-                    className={`bracketMatch${stageIndex < stages.length - 1 ? ' connected' : ''}`}
-                  >
-                    <div className="bracketMatchMeta">
-                      <span>#{match.matchNumber}</span>
-                      <time>{formatMatchDate(match.startsAt)}</time>
-                    </div>
-                    <BracketTeam team={home} score={match.homeGoals} winner={winner === 'home'} />
-                    <BracketTeam team={away} score={match.awayGoals} winner={winner === 'away'} />
-                    <div className="bracketVenue">
-                      {match.city}{match.venue ? ` · ${match.venue}` : ''}
-                    </div>
-                  </article>
-                );
-              })}
+              {groups.map((group) => (
+                <div key={group.key} className="bracketAdvanceGroup">
+                  {group.label && <div className="bracketAdvanceLabel">{group.label}</div>}
+                  <div className="bracketAdvanceMatches">
+                    {group.matches.map((match) => {
+                      const home = bracketTeamInfo(match, teams, 'home');
+                      const away = bracketTeamInfo(match, teams, 'away');
+                      const winner = matchWinnerSide(match);
+                      return (
+                        <article
+                          key={match.id}
+                          className={`bracketMatch${stageIndex < stages.length - 1 ? ' connected' : ''}`}
+                        >
+                          <div className="bracketMatchMeta">
+                            <span>#{match.matchNumber}</span>
+                            <time>{formatMatchDate(match.startsAt)}</time>
+                          </div>
+                          <BracketTeam team={home} score={match.homeGoals} winner={winner === 'home'} />
+                          <BracketTeam team={away} score={match.awayGoals} winner={winner === 'away'} />
+                          <div className="bracketVenue">
+                            {match.city}{match.venue ? ` · ${match.venue}` : ''}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         ))}

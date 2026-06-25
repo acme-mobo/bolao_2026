@@ -2051,6 +2051,32 @@ button { cursor: pointer; border: 0; }
   gap: 14px;
 }
 
+.bracketAdvanceGroup {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bracketAdvanceLabel {
+  min-width: 0;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracketAdvanceMatches {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
 .bracketMatch {
   position: relative;
   display: grid;
