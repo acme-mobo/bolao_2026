@@ -67,6 +67,10 @@ export class JsonFileStore {
     return this.db;
   }
 
+  async loadCollections() {
+    return this.load();
+  }
+
   async save() {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     fs.writeFileSync(this.file, `${JSON.stringify(this.db, null, 2)}\n`);
@@ -94,9 +98,13 @@ export class FirestoreStore {
   }
 
   async load() {
+    return this.loadCollections(collections);
+  }
+
+  async loadCollections(selectedCollections = collections) {
     const root = this.rootDoc();
     const loaded = emptyDb();
-    for (const collection of collections) {
+    for (const collection of selectedCollections) {
       const snapshot = await root.collection(collection).get();
       loaded[collection] = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     }

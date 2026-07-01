@@ -13,10 +13,10 @@ export async function readJson(request) {
   }
 }
 
-export function send(response, status, payload = undefined) {
+export function send(response, status, payload = undefined, options = {}) {
   response.statusCode = status;
   response.setHeader('content-type', 'application/json; charset=utf-8');
-  response.setHeader('cache-control', 'no-store, max-age=0');
+  response.setHeader('cache-control', options.cacheControl ?? 'no-store, max-age=0');
   response.end(payload === undefined ? '' : JSON.stringify(payload));
 }
 

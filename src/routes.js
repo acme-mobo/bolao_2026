@@ -13,8 +13,10 @@ import { buildLeaderboard, scorePrediction } from './scoring.js';
 import { optionalDate, requireEmail, requireInteger, requireString } from './validation.js';
 import { buildCompactSyncResponse, orchestrate } from './wc-sync.js';
 
-function route(method, pattern, handler) {
-  return { method, pattern, handler };
+const publicApiCacheControl = 'public, max-age=0, s-maxage=60, stale-while-revalidate=300';
+
+function route(method, pattern, handler, options = {}) {
+  return { method, pattern, handler, ...options };
 }
 
 function publicPool(pool) {
@@ -198,8 +200,8 @@ export function createRouter(store, options = {}) {
     route('GET', /^\/matches$/, (request, response, db) => {
       const status = parseUrl(request).searchParams.get('status');
       const matches = status ? db.matches.filter((match) => match.status === status) : db.matches;
-      send(response, 200, { matches });
-    }),
+      send(response, 200, { matches }, { cacheControl: publicApiCacheControl });
+    }, { collections: ['matches'] }),
 
     route('GET', /^\/matches\/summary$/, (request, response, db) => {
       const dateParam = parseUrl(request).searchParams.get('date');
@@ -225,8 +227,8 @@ export function createRouter(store, options = {}) {
           };
         });
 
-      send(response, 200, { matches: summarizedMatches });
-    }),
+      send(response, 200, { matches: summarizedMatches }, { cacheControl: publicApiCacheControl });
+    }, { collections: ['matches', 'teams'] }),
 
     route('GET', /^\/live-score\/provider$/, (_request, response) => {
       send(response, 200, liveScoreProvider.getStatus());
@@ -534,9 +536,11 @@ export function createRouter(store, options = {}) {
       return;
     }
 
-    const db = await store.load();
     const found = routes.find((candidate) => candidate.method === request.method && candidate.pattern.test(pathname));
     if (!found) return notFound();
+    const db = found.collections && typeof store.loadCollections === 'function'
+      ? await store.loadCollections(found.collections)
+      : await store.load();
     const match = found.pattern.exec(pathname);
     // attach adjusted pathname back to request.url so helpers (parseUrl) continue to work
     const originalUrl = request.url;

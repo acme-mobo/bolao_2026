@@ -83,6 +83,66 @@ test('respostas da API interna nao ficam em cache', async () => {
   assert.equal(result.headers['cache-control'], 'no-store, max-age=0');
 });
 
+test('matches publicos usam cache curto', async () => {
+  const api = await createApi();
+
+  const matches = await request(api, '/matches');
+  const summary = await request(api, '/matches/summary');
+
+  assert.equal(matches.status, 200);
+  assert.equal(matches.headers['cache-control'], 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+  assert.equal(summary.status, 200);
+  assert.equal(summary.headers['cache-control'], 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+});
+
+test('matches carregam somente colecoes necessarias quando store suporta leitura parcial', async () => {
+  const calls = [];
+  const store = {
+    db: {
+      matches: [
+        {
+          id: 'match_1',
+          matchNumber: 1,
+          homeTeamId: 'team_MEX',
+          awayTeamId: 'team_RSA',
+          status: 'scheduled',
+          homeGoals: null,
+          awayGoals: null,
+        },
+      ],
+      teams: [
+        { id: 'team_MEX', name: 'Mexico', code: 'MEX' },
+        { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA' },
+      ],
+    },
+    async load() {
+      calls.push({ type: 'load' });
+      return this.db;
+    },
+    async loadCollections(collections) {
+      calls.push({ type: 'loadCollections', collections });
+      return {
+        users: [],
+        teams: collections.includes('teams') ? this.db.teams : [],
+        matches: collections.includes('matches') ? this.db.matches : [],
+        pools: [],
+        memberships: [],
+        predictions: [],
+        standings: [],
+      };
+    },
+  };
+  const api = { store, router: createRouter(store) };
+
+  await request(api, '/matches');
+  await request(api, '/matches/summary');
+
+  assert.deepEqual(calls, [
+    { type: 'loadCollections', collections: ['matches'] },
+    { type: 'loadCollections', collections: ['matches', 'teams'] },
+  ]);
+});
+
 test('retorna bolao ativo e inclui usuario automaticamente', async () => {
   const api = await createApi();
   const register = await request(api, '/auth/register', {
