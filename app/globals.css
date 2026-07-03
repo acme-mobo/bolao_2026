@@ -2009,6 +2009,10 @@ button { cursor: pointer; border: 0; }
   align-items: stretch;
 }
 
+.bracketBoardSplit {
+  grid-template-columns: repeat(var(--round-count), minmax(168px, 1fr));
+}
+
 .bracketRound {
   display: grid;
   grid-template-rows: auto 1fr;
@@ -2045,7 +2049,7 @@ button { cursor: pointer; border: 0; }
   padding-top: 12px;
 }
 
-.bracketRound.finalRound .bracketRoundMatches {
+.bracketRound.centerRound .bracketRoundMatches {
   min-height: var(--bracket-board-height);
 }
 
@@ -2066,8 +2070,12 @@ button { cursor: pointer; border: 0; }
     var(--bg2);
 }
 
-.bracketRound.finalRound .bracketMatch {
+.bracketRound.centerRound .bracketMatch {
   width: 100%;
+  border-color: rgba(245,166,35,0.32);
+  background:
+    linear-gradient(180deg, rgba(245,166,35,0.08), transparent),
+    var(--bg2);
 }
 
 .bracketMatch.connected::after {
@@ -2075,6 +2083,20 @@ button { cursor: pointer; border: 0; }
   position: absolute;
   top: 50%;
   right: -19px;
+  width: 18px;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.bracketMatch.connected.mirrored::after {
+  display: none;
+}
+
+.bracketMatch.connected.mirrored::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -19px;
   width: 18px;
   height: 1px;
   background: var(--line-strong);

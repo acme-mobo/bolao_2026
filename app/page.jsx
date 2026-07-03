@@ -701,53 +701,107 @@ const BRACKET_CARD_HEIGHT = 126;
 const BRACKET_CARD_MID = BRACKET_CARD_HEIGHT / 2;
 const BRACKET_STEP = 150;
 
+function splitBracketSides(stages) {
+  const centerStage = stages.find((stage) => stage.key === 'finals')
+    ?? stages.find((stage) => stage.key === 'final')
+    ?? stages.at(-1);
+  const sideStages = stages.filter((stage) => stage !== centerStage && stage.key !== 'third-place');
+  const firstStageMatchCount = sideStages[0]?.matches.length ?? centerStage?.matches.length ?? 1;
+  const sideSlotCount = Math.max(Math.ceil(firstStageMatchCount / 2), 1);
+  const centerSlot = (Math.max(firstStageMatchCount, 1) - 1) / 2;
+
+  const mapSide = (predicate) => sideStages
+    .map((stage) => ({
+      ...stage,
+      matches: stage.matches.filter((match) => predicate(match.bracketSlot ?? centerSlot, centerSlot)),
+    }))
+    .filter((stage) => stage.matches.length > 0);
+  const minSlot = (stageList) => Math.min(
+    ...stageList.flatMap((stage) => stage.matches.map((match) => match.bracketSlot).filter(Number.isFinite)),
+  );
+  const withDisplaySlots = (stageList, offset) => stageList.map((stage) => ({
+    ...stage,
+    matches: stage.matches.map((match) => ({
+      ...match,
+      displayBracketSlot: (match.bracketSlot ?? offset) - offset,
+    })),
+  }));
+  const withCenterDisplaySlots = (stage) => {
+    if (!stage) return stage;
+    const visualCenterSlot = (sideSlotCount - 1) / 2;
+    return {
+      ...stage,
+      matches: stage.matches.map((match) => ({
+        ...match,
+        displayBracketSlot: visualCenterSlot + ((match.bracketSlot ?? centerSlot) - centerSlot),
+      })),
+    };
+  };
+  const leftStages = mapSide((slot, midpoint) => slot <= midpoint);
+  const rightStages = mapSide((slot, midpoint) => slot > midpoint);
+  const leftOffset = Number.isFinite(minSlot(leftStages)) ? minSlot(leftStages) : 0;
+  const rightOffset = Number.isFinite(minSlot(rightStages)) ? minSlot(rightStages) : 0;
+
+  return {
+    centerStage: withCenterDisplaySlots(centerStage),
+    leftStages: withDisplaySlots(leftStages, leftOffset),
+    rightStages: withDisplaySlots(rightStages, rightOffset).reverse(),
+    visualSlotCount: sideSlotCount,
+  };
+}
+
 function KnockoutBracket({ matches, teams }) {
   const stages = groupMatchesForBracket(matches);
-  const baseMatchCount = stages[0]?.matches.length ?? 0;
-  const bracketBoardHeight = BRACKET_CARD_HEIGHT + (Math.max(baseMatchCount, 1) - 1) * BRACKET_STEP;
+  const { centerStage, leftStages, rightStages, visualSlotCount } = splitBracketSides(stages);
+  const bracketBoardHeight = BRACKET_CARD_HEIGHT + (Math.max(visualSlotCount, 1) - 1) * BRACKET_STEP;
+  const roundCount = leftStages.length + (centerStage ? 1 : 0) + rightStages.length;
 
   if (stages.length === 0) {
     return <div className="emptyState">Jogos de mata-mata ainda não disponíveis.</div>;
   }
 
+  const renderRound = ({ key, label, matches: stageMatches }, options = {}) => (
+    <section key={key} className={`bracketRound${options.center ? ' centerRound' : ''}${options.mirrored ? ' mirroredRound' : ''}`}>
+      <div className="bracketRoundHead">
+        <span>{label}</span>
+        <small>{stageMatches.length} jogo{stageMatches.length > 1 ? 's' : ''}</small>
+      </div>
+      <div className="bracketRoundMatches">
+        {stageMatches.map((match) => {
+          const home = bracketTeamInfo(match, teams, 'home');
+          const away = bracketTeamInfo(match, teams, 'away');
+          const winner = matchWinnerSide(match);
+          return (
+            <article
+              key={match.id}
+              className={`bracketMatch${options.connected ? ' connected' : ''}${options.mirrored ? ' mirrored' : ''}`}
+              style={{ '--bracket-top': `${BRACKET_CARD_MID + ((match.displayBracketSlot ?? match.bracketSlot ?? 0) * BRACKET_STEP)}px` }}
+            >
+              <div className="bracketMatchMeta">
+                <span>#{match.matchNumber}</span>
+                <time>{formatMatchDate(match.startsAt)}</time>
+              </div>
+              <BracketTeam team={home} score={match.homeGoals} winner={winner === 'home'} />
+              <BracketTeam team={away} score={match.awayGoals} winner={winner === 'away'} />
+              <div className="bracketVenue">
+                {match.city}{match.venue ? ` · ${match.venue}` : ''}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+
   return (
     <div className="bracketViewport">
       <div
-        className="bracketBoard"
-        style={{ '--round-count': stages.length, '--bracket-board-height': `${bracketBoardHeight}px` }}
+        className="bracketBoard bracketBoardSplit"
+        style={{ '--round-count': roundCount, '--bracket-board-height': `${bracketBoardHeight}px` }}
       >
-        {stages.map(({ key, label, matches: stageMatches }, stageIndex) => (
-          <section key={key} className={`bracketRound${key === 'finals' ? ' finalRound' : ''}`}>
-            <div className="bracketRoundHead">
-              <span>{label}</span>
-              <small>{stageMatches.length} jogo{stageMatches.length > 1 ? 's' : ''}</small>
-            </div>
-            <div className="bracketRoundMatches">
-              {stageMatches.map((match) => {
-                const home = bracketTeamInfo(match, teams, 'home');
-                const away = bracketTeamInfo(match, teams, 'away');
-                const winner = matchWinnerSide(match);
-                return (
-                  <article
-                    key={match.id}
-                    className={`bracketMatch${stageIndex < stages.length - 1 ? ' connected' : ''}`}
-                    style={{ '--bracket-top': `${BRACKET_CARD_MID + ((match.bracketSlot ?? 0) * BRACKET_STEP)}px` }}
-                  >
-                    <div className="bracketMatchMeta">
-                      <span>#{match.matchNumber}</span>
-                      <time>{formatMatchDate(match.startsAt)}</time>
-                    </div>
-                    <BracketTeam team={home} score={match.homeGoals} winner={winner === 'home'} />
-                    <BracketTeam team={away} score={match.awayGoals} winner={winner === 'away'} />
-                    <div className="bracketVenue">
-                      {match.city}{match.venue ? ` · ${match.venue}` : ''}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+        {leftStages.map((stage) => renderRound(stage, { connected: true }))}
+        {centerStage && renderRound(centerStage, { center: true })}
+        {rightStages.map((stage) => renderRound(stage, { connected: true, mirrored: true }))}
       </div>
     </div>
   );
@@ -782,7 +836,7 @@ export default function HomePage() {
   const [navMode, setNavMode]     = useState('pending'); // group | knockout | date | pending
   const [resultsMode, setResultsMode] = useState('date'); // group | knockout | date
   const [matchFilter, setMatchFilter] = useState('all'); // all | pending
-  const [tableMode, setTableMode] = useState('groups'); // groups | bracket
+  const [tableMode, setTableMode] = useState('bracket'); // groups | bracket
   const [editingName, setEditingName]   = useState(false);
   const [nameInput, setNameInput]       = useState('');
   const [toasts, setToasts]             = useState([]);
@@ -821,7 +875,7 @@ export default function HomePage() {
     setNavMode(snapshot.ui?.navMode ?? 'pending');
     setResultsMode(snapshot.ui?.resultsMode ?? 'date');
     setMatchFilter(snapshot.ui?.matchFilter ?? 'all');
-    setTableMode(snapshot.ui?.tableMode ?? 'groups');
+    setTableMode(snapshot.ui?.tableMode ?? 'bracket');
   }, []);
 
   useEffect(() => {
