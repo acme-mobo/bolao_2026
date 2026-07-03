@@ -20,6 +20,8 @@ const ROUND_OF_32_SLOTS = {
   88: { home: { group: 'D', rank: 2 }, away: { group: 'G', rank: 2 } },
 };
 
+const WINNER_SLOT_PATTERN = /^Vencedor Jogo (\d+)$/;
+
 function buildCompletedGroupTables(db) {
   const teamsById = new Map(db.teams.map((team) => [team.id, team]));
   const matchesByGroup = new Map();
@@ -96,12 +98,34 @@ function resolvedTeamForSlot(slot, completedGroupTables) {
   return table?.[slot.rank - 1]?.team ?? null;
 }
 
-function buildKnockoutMatch(match, teamsByCode, completedGroupTables, existing = null) {
+function finishedWinner(match, teamsById) {
+  if (!match || match.status !== 'finished') return null;
+  if (!Number.isInteger(match.homeGoals) || !Number.isInteger(match.awayGoals)) return null;
+  if (match.homeGoals === match.awayGoals) return null;
+
+  const winnerId = match.homeGoals > match.awayGoals ? match.homeTeamId : match.awayTeamId;
+  return teamsById.get(winnerId) ?? null;
+}
+
+function resolvedTeamForPathSlot(slot, matchesByNumber, teamsById) {
+  const sourceMatchNumber = slot?.match(WINNER_SLOT_PATTERN)?.[1];
+  if (!sourceMatchNumber) return null;
+  return finishedWinner(matchesByNumber.get(Number(sourceMatchNumber)), teamsById);
+}
+
+function resolvedTeamForMatchSide({ match, side, teamsByCode, teamsById, completedGroupTables, matchesByNumber }) {
   const slot = ROUND_OF_32_SLOTS[match.matchNumber] ?? {};
-  const resolvedHome = resolvedTeamForSlot(slot.home, completedGroupTables);
-  const resolvedAway = resolvedTeamForSlot(slot.away, completedGroupTables);
-  const home = resolvedHome ?? (match.homeCode ? teamsByCode.get(match.homeCode) : null);
-  const away = resolvedAway ?? (match.awayCode ? teamsByCode.get(match.awayCode) : null);
+  const sideSlot = side === 'home' ? match.homeSlot : match.awaySlot;
+  const sideCode = side === 'home' ? match.homeCode : match.awayCode;
+  const groupResolved = resolvedTeamForSlot(slot[side], completedGroupTables);
+  const pathResolved = resolvedTeamForPathSlot(sideSlot, matchesByNumber, teamsById);
+
+  return groupResolved ?? pathResolved ?? (sideCode ? teamsByCode.get(sideCode) : null);
+}
+
+function buildKnockoutMatch(match, teamsByCode, teamsById, completedGroupTables, matchesByNumber, existing = null) {
+  const home = resolvedTeamForMatchSide({ match, side: 'home', teamsByCode, teamsById, completedGroupTables, matchesByNumber });
+  const away = resolvedTeamForMatchSide({ match, side: 'away', teamsByCode, teamsById, completedGroupTables, matchesByNumber });
   const now = new Date().toISOString();
 
   return {
@@ -130,7 +154,9 @@ await store.load();
 
 const result = await store.transaction((db) => {
   const teamsByCode = new Map(db.teams.map((team) => [team.code, team]));
+  const teamsById = new Map(db.teams.map((team) => [team.id, team]));
   const completedGroupTables = buildCompletedGroupTables(db);
+  const matchesByNumber = new Map(db.matches.map((match) => [match.matchNumber, match]));
   let created = 0;
   let updated = 0;
 
@@ -138,7 +164,14 @@ const result = await store.transaction((db) => {
     const existingIndex = db.matches.findIndex(
       (candidate) => candidate.matchNumber === match.matchNumber || candidate.id === `match_${match.matchNumber}`,
     );
-    const nextMatch = buildKnockoutMatch(match, teamsByCode, completedGroupTables, db.matches[existingIndex] ?? null);
+    const nextMatch = buildKnockoutMatch(
+      match,
+      teamsByCode,
+      teamsById,
+      completedGroupTables,
+      matchesByNumber,
+      db.matches[existingIndex] ?? null,
+    );
 
     if (existingIndex >= 0) {
       db.matches[existingIndex] = nextMatch;
@@ -147,6 +180,8 @@ const result = await store.transaction((db) => {
       db.matches.push(nextMatch);
       created++;
     }
+
+    matchesByNumber.set(nextMatch.matchNumber, nextMatch);
   }
 
   db.matches.sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0));
