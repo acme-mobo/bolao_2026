@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
+import { asyncHandler } from '../../../src/http.js';
 import { createRouter } from '../../../src/routes.js';
 import { store } from '../../../src/store.js';
 
-const router = createRouter(store);
+const router = asyncHandler(createRouter(store));
 
 function createNodeRequest(request, params) {
   const url = new URL(request.url);
