@@ -95,6 +95,28 @@ test('matches publicos usam cache curto', async () => {
   assert.equal(summary.headers['cache-control'], 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
 });
 
+test('matches em janela live usam cache menor e fresh ignora cache', async () => {
+  const api = await createApi();
+  await api.store.transaction((db) => {
+    db.matches = [
+      {
+        id: 'match_live_window',
+        matchNumber: 1,
+        startsAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+        status: 'live',
+        homeGoals: 2,
+        awayGoals: 1,
+      },
+    ];
+  });
+
+  const live = await request(api, '/matches');
+  const fresh = await request(api, '/matches?fresh=1');
+
+  assert.equal(live.headers['cache-control'], 'public, max-age=0, s-maxage=10, stale-while-revalidate=15');
+  assert.equal(fresh.headers['cache-control'], 'no-store, max-age=0');
+});
+
 test('matches carregam somente colecoes necessarias quando store suporta leitura parcial', async () => {
   const calls = [];
   const store = {

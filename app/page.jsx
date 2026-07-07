@@ -923,8 +923,9 @@ export default function HomePage() {
   }
 
   // ─── Data loaders ───────────────────────────────────
-  const loadPublic = useCallback(async () => {
-    const [gd, td, md] = await Promise.all([api('/groups'), api('/teams'), api('/matches')]);
+  const loadPublic = useCallback(async (options = {}) => {
+    const matchesPath = options.fresh ? `/matches?fresh=${Date.now()}` : '/matches';
+    const [gd, td, md] = await Promise.all([api('/groups'), api('/teams'), api(matchesPath)]);
     replaceIfChanged(setGroups, gd.groups);
     replaceIfChanged(setTeams, td.teams);
     replaceIfChanged(setMatches, md.matches);
@@ -1292,7 +1293,7 @@ export default function HomePage() {
       lastAutoRefreshRef.current = Date.now();
       try {
         await Promise.all([
-          loadPublic(),
+          loadPublic({ fresh: hasLiveRefreshWindow }),
           loadPoolData(selectedPoolId, token, { silent: true }),
         ]);
       } catch (err) {

@@ -386,8 +386,9 @@ export default function TodayPage() {
     localStorage.setItem('theme', next);
   }
 
-  const loadPublic = useCallback(async () => {
-    const [td, md] = await Promise.all([api('/teams'), api('/matches')]);
+  const loadPublic = useCallback(async (options = {}) => {
+    const matchesPath = options.fresh ? `/matches?fresh=${Date.now()}` : '/matches';
+    const [td, md] = await Promise.all([api('/teams'), api(matchesPath)]);
     replaceIfChanged(setTeams, td.teams);
     replaceIfChanged(setMatches, md.matches);
   }, []);
@@ -483,7 +484,7 @@ export default function TodayPage() {
       if (Date.now() - lastAutoRefreshRef.current < intervalMs) return;
       lastAutoRefreshRef.current = Date.now();
       try {
-        await Promise.all([loadPublic(), loadProtected(token)]);
+        await Promise.all([loadPublic({ fresh: hasLiveRefreshWindow }), loadProtected(token)]);
       } catch (err) {
         setError(err.message);
       }

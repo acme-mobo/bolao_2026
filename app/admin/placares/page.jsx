@@ -221,8 +221,9 @@ export default function AdminScoresPage() {
     localStorage.setItem('theme', next);
   }
 
-  const loadPublic = useCallback(async () => {
-    const [teamsData, matchesData] = await Promise.all([api('/teams'), api('/matches')]);
+  const loadPublic = useCallback(async (options = {}) => {
+    const matchesPath = options.fresh ? `/matches?fresh=${Date.now()}` : '/matches';
+    const [teamsData, matchesData] = await Promise.all([api('/teams'), api(matchesPath)]);
     replaceIfChanged(setTeams, teamsData.teams);
     replaceIfChanged(setMatches, matchesData.matches);
     setDrafts((current) => {
@@ -354,7 +355,7 @@ export default function AdminScoresPage() {
 
   async function handleRefresh() {
     try {
-      await loadPublic();
+      await loadPublic({ fresh: true });
       setMessage('Dados atualizados.');
     } catch (error) {
       setMessage(error.message);

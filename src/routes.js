@@ -14,6 +14,7 @@ import { optionalDate, requireEmail, requireInteger, requireString } from './val
 import { buildCompactSyncResponse, orchestrate } from './wc-sync.js';
 
 const publicApiCacheControl = 'public, max-age=0, s-maxage=60, stale-while-revalidate=300';
+const liveApiCacheControl = 'public, max-age=0, s-maxage=10, stale-while-revalidate=15';
 
 function route(method, pattern, handler, options = {}) {
   return { method, pattern, handler, ...options };
@@ -88,6 +89,22 @@ const summaryDateFormatter = new Intl.DateTimeFormat('en-CA', {
 
 function matchLocalDate(startsAt) {
   return startsAt ? summaryDateFormatter.format(new Date(startsAt)) : null;
+}
+
+function isLiveSensitiveMatch(match, nowMs = Date.now()) {
+  if (match.status === 'live') return true;
+  if (match.status === 'finished' || match.status === 'cancelled') return false;
+  const startsAtMs = new Date(match.startsAt).getTime();
+  if (!Number.isFinite(startsAtMs)) return false;
+  return nowMs >= startsAtMs - 60 * 60_000 && nowMs <= startsAtMs + 3 * 60 * 60_000;
+}
+
+function publicMatchesCacheControl(request, matches) {
+  const searchParams = parseUrl(request).searchParams;
+  if (searchParams.has('fresh')) return 'no-store, max-age=0';
+  return matches.some((match) => isLiveSensitiveMatch(match))
+    ? liveApiCacheControl
+    : publicApiCacheControl;
 }
 
 export function createRouter(store, options = {}) {
@@ -200,7 +217,7 @@ export function createRouter(store, options = {}) {
     route('GET', /^\/matches$/, (request, response, db) => {
       const status = parseUrl(request).searchParams.get('status');
       const matches = status ? db.matches.filter((match) => match.status === status) : db.matches;
-      send(response, 200, { matches }, { cacheControl: publicApiCacheControl });
+      send(response, 200, { matches }, { cacheControl: publicMatchesCacheControl(request, matches) });
     }, { collections: ['matches'] }),
 
     route('GET', /^\/matches\/summary$/, (request, response, db) => {
@@ -227,7 +244,7 @@ export function createRouter(store, options = {}) {
           };
         });
 
-      send(response, 200, { matches: summarizedMatches }, { cacheControl: publicApiCacheControl });
+      send(response, 200, { matches: summarizedMatches }, { cacheControl: publicMatchesCacheControl(request, matches) });
     }, { collections: ['matches', 'teams'] }),
 
     route('GET', /^\/live-score\/provider$/, (_request, response) => {
