@@ -8,6 +8,7 @@ import {
   getApiFootballCapabilities,
   getDailySyncSource,
   getStandingsSyncSource,
+  getLiveSyncInterval,
   getLocalFixturesForDate,
   shouldTrackApiFootballQuota,
   hasApiFootballBudget,
@@ -153,6 +154,26 @@ test('janela de live considera uma hora antes ate tres horas depois', () => {
 
 test('janela de live ignora dias sem jogo conhecido', () => {
   assert.equal(isInsideLiveWindow([], new Date('2026-06-11T19:00:00.000Z')), false);
+});
+
+test('intervalo de live usa 3 minutos em jogo e janelas mais baratas fora dele', () => {
+  const fixture = { date: '2026-06-11T19:00:00.000Z', status: 'scheduled' };
+
+  assert.equal(getLiveSyncInterval([fixture], new Date('2026-06-11T18:20:00.000Z')), 10);
+  assert.equal(getLiveSyncInterval([fixture], new Date('2026-06-11T18:50:00.000Z')), 5);
+  assert.equal(getLiveSyncInterval([fixture], new Date('2026-06-11T19:30:00.000Z')), 3);
+  assert.equal(getLiveSyncInterval([{ ...fixture, status: 'live' }], new Date('2026-06-11T20:00:00.000Z')), 3);
+  assert.equal(getLiveSyncInterval([fixture], new Date('2026-06-11T22:00:00.000Z')), 10);
+});
+
+test('intervalo de live ignora jogos finalizados', () => {
+  assert.equal(
+    getLiveSyncInterval(
+      [{ date: '2026-06-11T19:00:00.000Z', status: 'finished' }],
+      new Date('2026-06-11T20:00:00.000Z'),
+    ),
+    null,
+  );
 });
 
 test('force permite rodar live mesmo com lastLive fresco', () => {

@@ -22,6 +22,8 @@ const DAILY_LIMIT   = 100;
 const LOCK_TTL_MS   = 5 * 60 * 1000; // lock expira em 5 min
 const LIVE_WINDOW_BEFORE_MS = 60 * 60_000;
 const LIVE_WINDOW_AFTER_MS  = 3 * 60 * 60_000;
+const LIVE_PRE_NEAR_MS = 15 * 60_000;
+const LIVE_IN_GAME_AFTER_MS = 150 * 60_000;
 
 // Limiares de uso que mudam o modo de operação
 const THRESHOLDS = { economy: 70, critical: 85, cacheOnly: 95 };
@@ -33,6 +35,13 @@ const INTERVALS = {
   standings:   [  240,    480,     null  ],
   daily:       [   60,    120,      180  ],
   live:        [   10,     15,       20  ],
+};
+
+const LIVE_CONTEXT_INTERVALS = {
+  preFar: 10,
+  preNear: 5,
+  inGame: 3,
+  postRecent: 10,
 };
 
 const FREE_PLAN_SUPPORTED_SEASONS = new Set([2022, 2023, 2024]);
@@ -563,6 +572,36 @@ export function shouldRunLiveSync({ force = false, liveInterval, lastLive, hasMa
     && (hasLiveNow || insideLiveWindow);
 }
 
+export function getLiveSyncInterval(fixtures = [], now = new Date()) {
+  if (!fixtures.length) return null;
+  const nowMs = now.getTime();
+  let bestInterval = null;
+
+  for (const fixture of fixtures) {
+    if (fixture.status === 'finished' || fixture.status === 'cancelled') continue;
+    const startMs = new Date(fixture.date).getTime();
+    if (!Number.isFinite(startMs)) continue;
+    const delta = nowMs - startMs;
+    let interval = null;
+
+    if (fixture.status === 'live' || (delta >= 0 && delta <= LIVE_IN_GAME_AFTER_MS)) {
+      interval = LIVE_CONTEXT_INTERVALS.inGame;
+    } else if (delta >= -LIVE_PRE_NEAR_MS && delta < 0) {
+      interval = LIVE_CONTEXT_INTERVALS.preNear;
+    } else if (delta >= -LIVE_WINDOW_BEFORE_MS && delta < -LIVE_PRE_NEAR_MS) {
+      interval = LIVE_CONTEXT_INTERVALS.preFar;
+    } else if (delta > LIVE_IN_GAME_AFTER_MS && delta <= LIVE_WINDOW_AFTER_MS) {
+      interval = LIVE_CONTEXT_INTERVALS.postRecent;
+    }
+
+    if (interval !== null) {
+      bestInterval = bestInterval === null ? interval : Math.min(bestInterval, interval);
+    }
+  }
+
+  return bestInterval;
+}
+
 // ─── Orquestrador principal ───────────────────────────
 export async function orchestrate(options = {}) {
   if (store.kind !== 'firestore') {
@@ -710,10 +749,14 @@ export async function orchestrate(options = {}) {
     }
   }
 
-  const liveInterval = intervalFor('live', mode);
+  const configuredLiveInterval = intervalFor('live', mode);
+  const contextualLiveInterval = getLiveSyncInterval(knownTodayFixtures);
+  const liveInterval = force
+    ? configuredLiveInterval
+    : Math.min(configuredLiveInterval ?? Infinity, contextualLiveInterval ?? Infinity);
   const shouldSyncLive = shouldRunLiveSync({
     force,
-    liveInterval,
+    liveInterval: Number.isFinite(liveInterval) ? liveInterval : null,
     lastLive: status.lastLive,
     hasMatchesToday,
     hasLiveNow,
