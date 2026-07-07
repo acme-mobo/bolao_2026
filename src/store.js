@@ -67,6 +67,7 @@ export class JsonFileStore {
     this.file = file;
     this.db = emptyDb();
     this.kind = 'json';
+    this.lock = Promise.resolve();
   }
 
   async load() {
@@ -95,6 +96,20 @@ export class JsonFileStore {
     await this.save();
     return resolved;
   }
+
+  async withLock(callback) {
+    const previous = this.lock;
+    let release;
+    this.lock = new Promise((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await callback();
+    } finally {
+      release();
+    }
+  }
 }
 
 export class FirestoreStore {
@@ -107,6 +122,7 @@ export class FirestoreStore {
     this.collectionCache = new Map();
     this.loadedCollections = new Set();
     this.originalShape = cloneShape(toNoSqlShape(this.db));
+    this.lock = Promise.resolve();
   }
 
   rootDoc() {
@@ -186,6 +202,20 @@ export class FirestoreStore {
     const resolved = result instanceof Promise ? await result : result;
     await this.save();
     return resolved;
+  }
+
+  async withLock(callback) {
+    const previous = this.lock;
+    let release;
+    this.lock = new Promise((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await callback();
+    } finally {
+      release();
+    }
   }
 }
 

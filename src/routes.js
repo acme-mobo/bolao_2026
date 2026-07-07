@@ -555,22 +555,28 @@ export function createRouter(store, options = {}) {
 
     const found = routes.find((candidate) => candidate.method === request.method && candidate.pattern.test(pathname));
     if (!found) return notFound();
-    const db = found.collections && typeof store.loadCollections === 'function'
-      ? await store.loadCollections(found.collections)
-      : await store.load();
-    const match = found.pattern.exec(pathname);
-    // attach adjusted pathname back to request.url so helpers (parseUrl) continue to work
-    const originalUrl = request.url;
-    try {
-      request.url = request.url.replace(url.pathname, pathname);
-      const result = await found.handler(request, response, db, match);
-      if (db.__dirty) {
-        await store.save();
-        db.__dirty = false;
+    const handleRoute = async () => {
+      const db = found.collections && typeof store.loadCollections === 'function'
+        ? await store.loadCollections(found.collections)
+        : await store.load();
+      const match = found.pattern.exec(pathname);
+      // attach adjusted pathname back to request.url so helpers (parseUrl) continue to work
+      const originalUrl = request.url;
+      try {
+        request.url = request.url.replace(url.pathname, pathname);
+        const result = await found.handler(request, response, db, match);
+        if (db.__dirty) {
+          await store.save();
+          db.__dirty = false;
+        }
+        return result;
+      } finally {
+        request.url = originalUrl;
       }
-      return result;
-    } finally {
-      request.url = originalUrl;
-    }
+    };
+
+    return typeof store.withLock === 'function'
+      ? store.withLock(handleRoute)
+      : handleRoute();
   };
 }

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import test from 'node:test';
+import { createToken } from '../src/auth.js';
 import { createRouter } from '../src/routes.js';
 import { Store } from '../src/store.js';
 import { worldCup2026GroupMatches, worldCup2026Teams } from '../src/world-cup-2026-data.js';
@@ -357,6 +358,109 @@ test('predictions reconhece palpites salvos com id legado do jogo', async () => 
   assert.equal(api.store.db.predictions.length, 1);
   assert.equal(api.store.db.predictions[0].matchId, 'current_match_1');
   assert.equal(api.store.db.predictions[0].homeGoals, 3);
+});
+
+test('router mantem transacao de palpite isolada de loads concorrentes', async () => {
+  let releaseTransaction;
+  let transactionStarted;
+  const transactionStartedPromise = new Promise((resolve) => {
+    transactionStarted = resolve;
+  });
+  const releaseTransactionPromise = new Promise((resolve) => {
+    releaseTransaction = resolve;
+  });
+
+  const user = { id: 'usr_race', name: 'Vagner', email: 'race@example.com', role: 'player' };
+  const fullDb = {
+    users: [user],
+    teams: [
+      { id: 'team_MEX', name: 'Mexico', code: 'MEX', group: 'A' },
+      { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA', group: 'A' },
+    ],
+    matches: [
+      {
+        id: 'match_1',
+        matchNumber: 1,
+        homeTeamId: 'team_MEX',
+        awayTeamId: 'team_RSA',
+        stage: 'group',
+        group: 'A',
+        startsAt: '2099-06-11T19:00:00.000Z',
+        lockAt: '2099-06-11T19:00:00.000Z',
+        status: 'scheduled',
+        homeGoals: null,
+        awayGoals: null,
+      },
+    ],
+    pools: [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: user.id, isActive: true }],
+    memberships: [{ poolId: 'pool_copa_2026', userId: user.id, joinedAt: '2026-06-01T00:00:00.000Z' }],
+    predictions: [],
+    standings: [],
+  };
+  const emptyDb = () => ({
+    users: [],
+    teams: [],
+    matches: [],
+    pools: [],
+    memberships: [],
+    predictions: [],
+    standings: [],
+  });
+  const store = {
+    db: emptyDb(),
+    lock: Promise.resolve(),
+    async withLock(callback) {
+      const previous = this.lock;
+      let release;
+      this.lock = new Promise((resolve) => {
+        release = resolve;
+      });
+      await previous;
+      try {
+        return await callback();
+      } finally {
+        release();
+      }
+    },
+    async loadCollections(collections) {
+      const nextDb = emptyDb();
+      for (const collection of collections) {
+        nextDb[collection] = fullDb[collection].map((item) => ({ ...item }));
+      }
+      this.db = nextDb;
+      return this.db;
+    },
+    async load() {
+      this.db = Object.fromEntries(
+        Object.entries(fullDb).map(([collection, items]) => [collection, items.map((item) => ({ ...item }))]),
+      );
+      return this.db;
+    },
+    async save() {},
+    async transaction(mutator) {
+      transactionStarted();
+      await releaseTransactionPromise;
+      const result = mutator(this.db);
+      return result instanceof Promise ? result : Promise.resolve(result);
+    },
+  };
+  const api = { store, router: createRouter(store) };
+  const token = createToken(user);
+
+  const postPromise = request(api, '/pools/pool_copa_2026/predictions', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    body: JSON.stringify({ matchId: 'match_1', homeGoals: 2, awayGoals: 1 }),
+  });
+  await transactionStartedPromise;
+  const matchesPromise = request(api, '/matches');
+
+  releaseTransaction();
+  const [post, matches] = await Promise.all([postPromise, matchesPromise]);
+
+  assert.equal(post.status, 200);
+  assert.equal(post.body.prediction.matchId, 'match_1');
+  assert.equal(matches.status, 200);
 });
 
 test('predictions bloqueia apostas nos 5 minutos antes do inicio', async () => {
