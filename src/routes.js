@@ -118,7 +118,7 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 201, result);
-    }),
+    }, { collections: ['users'] }),
 
     route('POST', /^\/auth\/login$/, async (request, response, db) => {
       const body = await readJson(request);
@@ -127,12 +127,12 @@ export function createRouter(store, options = {}) {
       const user = db.users.find((candidate) => candidate.email === email);
       assert(user && verifyPassword(password, user.passwordHash), 401, 'Credenciais invalidas');
       send(response, 200, { user: sanitizeUser(user), token: createToken(user) });
-    }),
+    }, { collections: ['users'] }),
 
     route('GET', /^\/me$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
       send(response, 200, { user: sanitizeUser(user) });
-    }),
+    }, { collections: ['users'] }),
 
     route('PATCH', /^\/me$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
@@ -148,7 +148,7 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 200, { user: sanitizeUser(updated) });
-    }),
+    }, { collections: ['users'] }),
 
     route('DELETE', /^\/me$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
@@ -163,21 +163,21 @@ export function createRouter(store, options = {}) {
       await deleteFirebaseAuthUser(user.id);
 
       send(response, 200, { ok: true });
-    }),
+    }, { collections: ['users', 'memberships', 'predictions'] }),
 
     route('GET', /^\/groups$/, (_request, response, db) => {
       send(response, 200, { groups: buildGroups(db) });
-    }),
+    }, { collections: ['teams', 'matches', 'standings'] }),
 
     route('GET', /^\/groups\/([A-L])$/, (_request, response, db, [, group]) => {
       const found = buildGroups(db).find((candidate) => candidate.group === group);
       assert(found, 404, 'Grupo nao encontrado');
       send(response, 200, { group: found });
-    }),
+    }, { collections: ['teams', 'matches', 'standings'] }),
 
     route('GET', /^\/teams$/, (_request, response, db) => {
       send(response, 200, { teams: db.teams });
-    }),
+    }, { collections: ['teams'] }),
 
     route('POST', /^\/teams$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
@@ -195,7 +195,7 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 201, { team });
-    }),
+    }, { collections: ['users', 'teams'] }),
 
     route('GET', /^\/matches$/, (request, response, db) => {
       const status = parseUrl(request).searchParams.get('status');
@@ -242,7 +242,7 @@ export function createRouter(store, options = {}) {
       await store.save();
 
       send(response, 200, result);
-    }),
+    }, { collections: ['users', 'teams', 'matches'] }),
 
     route('POST', /^\/admin\/sync$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
@@ -253,7 +253,7 @@ export function createRouter(store, options = {}) {
       const result = await orchestrate({ force: true });
 
       send(response, 200, { sync: buildCompactSyncResponse(result, providerStatus) });
-    }),
+    }, { collections: ['users'] }),
 
     route('POST', /^\/matches$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
@@ -285,7 +285,7 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 201, { match });
-    }),
+    }, { collections: ['users', 'teams', 'matches'] }),
 
     route('PATCH', /^\/matches\/([^/]+)$/, async (request, response, db, [, matchId]) => {
       const user = await requireFirebaseAuth(db, request);
@@ -315,7 +315,7 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 200, { match });
-    }),
+    }, { collections: ['users', 'matches'] }),
 
     route('POST', /^\/pools$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
@@ -336,19 +336,19 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 201, { pool: publicPool(pool) });
-    }),
+    }, { collections: ['users', 'pools', 'memberships'] }),
 
     route('GET', /^\/pools\/active$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
       const pool = await store.transaction((currentDb) => ensureActivePool(currentDb, user));
       send(response, 200, { pool: publicPool(pool) });
-    }),
+    }, { collections: ['users', 'pools', 'memberships'] }),
 
     route('GET', /^\/pools$/, async (request, response, db) => {
       const user = await requireFirebaseAuth(db, request);
       const pool = await store.transaction((currentDb) => ensureActivePool(currentDb, user));
       send(response, 200, { pools: [publicPool(pool)] });
-    }),
+    }, { collections: ['users', 'pools', 'memberships'] }),
 
     route('GET', /^\/pools\/([^/]+)$/, async (request, response, db, [, poolId]) => {
       const user = await requireFirebaseAuth(db, request);
@@ -360,7 +360,7 @@ export function createRouter(store, options = {}) {
         'Voce nao participa deste bolao',
       );
       send(response, 200, { pool: publicPool(pool) });
-    }),
+    }, { collections: ['users', 'pools', 'memberships'] }),
 
     route('POST', /^\/pools\/([^/]+)\/join$/, async (request, response, db, [, poolId]) => {
       const user = await requireFirebaseAuth(db, request);
@@ -382,7 +382,7 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 200, { membership });
-    }),
+    }, { collections: ['users', 'pools', 'memberships'] }),
 
     route('DELETE', /^\/pools\/([^/]+)\/predictions\/([^/]+)$/, async (request, response, db, [, poolId, matchId]) => {
       const user = await requireFirebaseAuth(db, request);
@@ -410,7 +410,7 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 200, { ok: true });
-    }),
+    }, { collections: ['users', 'memberships', 'matches', 'predictions'] }),
 
     route('POST', /^\/pools\/([^/]+)\/predictions$/, async (request, response, db, [, poolId]) => {
       const user = await requireFirebaseAuth(db, request);
@@ -459,7 +459,7 @@ export function createRouter(store, options = {}) {
       });
 
       send(response, 200, { prediction });
-    }),
+    }, { collections: ['users', 'pools', 'memberships', 'matches', 'predictions'] }),
 
     route('GET', /^\/pools\/([^/]+)\/predictions$/, async (request, response, db, [, poolId]) => {
       const user = await requireFirebaseAuth(db, request);
@@ -482,7 +482,7 @@ export function createRouter(store, options = {}) {
         });
 
       send(response, 200, { predictions });
-    }),
+    }, { collections: ['users', 'memberships', 'matches', 'predictions'] }),
 
     route('GET', /^\/pools\/([^/]+)\/matches\/([^/]+)\/predictions$/, async (request, response, db, [, poolId, matchId]) => {
       const user = await requireFirebaseAuth(db, request);
@@ -514,7 +514,7 @@ export function createRouter(store, options = {}) {
         .sort((a, b) => b.points - a.points || a.userName.localeCompare(b.userName));
 
       send(response, 200, { predictions });
-    }),
+    }, { collections: ['users', 'memberships', 'matches', 'predictions'] }),
 
     route('GET', /^\/pools\/([^/]+)\/leaderboard$/, async (request, response, db, [, poolId]) => {
       const user = await requireFirebaseAuth(db, request);
@@ -524,7 +524,7 @@ export function createRouter(store, options = {}) {
         'Voce nao participa deste bolao',
       );
       send(response, 200, { leaderboard: buildLeaderboard(db, poolId) });
-    }),
+    }, { collections: ['users', 'memberships', 'matches', 'predictions'] }),
   ];
 
   return async function router(request, response) {

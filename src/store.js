@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { getAdminFirestore } from './firebase-admin.js';
 
 const collections = ['users', 'teams', 'matches', 'pools', 'memberships', 'predictions', 'standings'];
+const DEFAULT_FIRESTORE_CACHE_TTL_MS = 60_000;
 
 export const emptyDb = () => ({
   users: [],
@@ -35,6 +36,18 @@ function normalizeDb(value) {
 
 function collectionToMap(collection, keyForItem = (item) => item.id) {
   return Object.fromEntries(collection.map((item) => [keyForItem(item), item]));
+}
+
+function cloneCollection(collection) {
+  return collection.map((item) => ({ ...item }));
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function cloneShape(shape) {
+  return JSON.parse(JSON.stringify(shape));
 }
 
 export function toNoSqlShape(db) {
@@ -90,6 +103,10 @@ export class FirestoreStore {
     this.db = emptyDb();
     this.kind = 'firestore';
     this.firestore = options.firestore ?? null;
+    this.cacheTtlMs = options.cacheTtlMs ?? DEFAULT_FIRESTORE_CACHE_TTL_MS;
+    this.collectionCache = new Map();
+    this.loadedCollections = new Set();
+    this.originalShape = cloneShape(toNoSqlShape(this.db));
   }
 
   rootDoc() {
@@ -104,31 +121,64 @@ export class FirestoreStore {
   async loadCollections(selectedCollections = collections) {
     const root = this.rootDoc();
     const loaded = emptyDb();
+    const now = Date.now();
     for (const collection of selectedCollections) {
+      const cached = this.collectionCache.get(collection);
+      if (cached && now - cached.fetchedAt < this.cacheTtlMs) {
+        loaded[collection] = cloneCollection(cached.data);
+        continue;
+      }
+
       const snapshot = await root.collection(collection).get();
-      loaded[collection] = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      this.collectionCache.set(collection, { data: cloneCollection(data), fetchedAt: now });
+      loaded[collection] = data;
     }
     this.db = normalizeDb(loaded);
+    this.loadedCollections = new Set(selectedCollections);
+    this.originalShape = cloneShape(toNoSqlShape(this.db));
     return this.db;
   }
 
   async save() {
     const root = this.rootDoc();
     const shape = toNoSqlShape(this.db);
-    const batch = (this.firestore ?? getAdminFirestore()).batch();
+    const firestore = this.firestore ?? getAdminFirestore();
+    const batch = firestore.batch();
+    const selectedCollections = this.loadedCollections.size
+      ? [...this.loadedCollections]
+      : collections;
+    let operations = 0;
 
-    for (const collection of collections) {
-      const snapshot = await root.collection(collection).get();
-      for (const doc of snapshot.docs) {
-        batch.delete(doc.ref);
+    for (const collection of selectedCollections) {
+      const before = this.originalShape[collection] ?? {};
+      const after = shape[collection] ?? {};
+
+      for (const id of Object.keys(before)) {
+        if (!(id in after)) {
+          batch.delete(root.collection(collection).doc(id));
+          operations++;
+        }
       }
 
-      for (const [id, item] of Object.entries(shape[collection])) {
-        batch.set(root.collection(collection).doc(id), item);
+      for (const [id, item] of Object.entries(after)) {
+        if (!sameJson(before[id], item)) {
+          batch.set(root.collection(collection).doc(id), item);
+          operations++;
+        }
       }
     }
 
-    await batch.commit();
+    if (operations > 0) await batch.commit();
+
+    const fetchedAt = Date.now();
+    for (const collection of selectedCollections) {
+      this.collectionCache.set(collection, {
+        data: cloneCollection(this.db[collection] ?? []),
+        fetchedAt,
+      });
+    }
+    this.originalShape = cloneShape(toNoSqlShape(this.db));
   }
 
   async transaction(mutator) {
