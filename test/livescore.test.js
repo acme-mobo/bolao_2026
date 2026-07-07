@@ -241,6 +241,42 @@ test('LiveScoreClient sobrescreve placar defasado do Next com endpoint publico p
   assert.equal(fixtures[0].awayGoals, 0);
 });
 
+test('LiveScoreClient sobrescreve placar por par de times quando endpoint por data usa outro id', async () => {
+  globalThis.fetch = async (url) => {
+    const text = String(url);
+    if (text.includes('/v1/api/app/date/soccer/20260611/0')) {
+      return jsonResponse(dateApiPayload([dateApiEvent({
+        Eid: 'date-api-1001',
+        Tr1: '2',
+        Tr2: '1',
+        Eps: "64'",
+        Etm: { RTm: 64 },
+      })]));
+    }
+    if (!text.includes('/_next/data/')) return htmlResponse(payload([]));
+    return jsonResponse(payload([event({
+      id: 'next-1001',
+      eventStatus: 'LIVE',
+      homeTeamScore: '1',
+      awayTeamScore: '0',
+      scores: { matchStatusDetails: { isInProgress: true, isFinished: false } },
+    })]));
+  };
+
+  const client = new LiveScoreClient({
+    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
+    publicApiUrl: 'https://prod-cdn-public-api.livescore.com',
+  });
+
+  const fixtures = await client.fetchLiveFixtures();
+
+  assert.equal(fixtures.length, 1);
+  assert.equal(fixtures[0].externalId, 'date-api-1001');
+  assert.equal(fixtures[0].homeGoals, 2);
+  assert.equal(fixtures[0].awayGoals, 1);
+  assert.equal(fixtures[0].statusElapsed, 64);
+});
+
 test('LiveScoreClient usa __NEXT_DATA__ como fallback se JSON falhar', async () => {
   globalThis.fetch = async (url) => {
     if (String(url).includes('/v1/api/app/date/soccer/')) return jsonResponse(dateApiPayload([]));

@@ -87,18 +87,18 @@ function draftFromMatch(match) {
 
 function formatSyncResult(sync) {
   if (!sync) return 'Sync concluído. Jogos atualizados.';
+  const changedOps = (sync.ran ?? []).filter((op) => Number(op.changes) > 0);
   const parts = [];
-  if (typeof sync.message === 'string' && sync.message.trim()) {
-    parts.push(sync.message.trim());
-  } else if (sync.status) {
-    parts.push(`Sync ${sync.status}`);
-  } else {
-    parts.push('Sync concluído');
-  }
 
-  if (sync.summary && typeof sync.summary === 'object') {
-    const { ok = 0, skipped = 0, errors = 0, total = 0 } = sync.summary;
-    parts.push(`${ok}/${total} operações OK, ${skipped} ignoradas, ${errors} com erro`);
+  if (changedOps.length > 0) {
+    const changes = changedOps.reduce((total, op) => total + Number(op.changes ?? 0), 0);
+    parts.push(`Sync concluído: ${changes} jogo(s) atualizado(s).`);
+  } else if (Array.isArray(sync.ran) && sync.ran.length > 0) {
+    parts.push('Sync concluído: nenhum placar mudou.');
+  } else if (sync.status) {
+    parts.push(`Sync ${sync.status}.`);
+  } else {
+    parts.push('Sync concluído.');
   }
 
   if (Array.isArray(sync.errors) && sync.errors.length > 0) {
@@ -107,9 +107,11 @@ function formatSyncResult(sync) {
   } else if (Array.isArray(sync.skipped) && sync.skipped.length > 0 && !sync.ran?.length) {
     const firstSkipped = sync.skipped[0];
     parts.push(`Ignorado: ${firstSkipped.reason ?? 'sem detalhe'}`);
+  } else if (sync.summary && typeof sync.summary === 'object') {
+    const { ok = 0, skipped = 0, errors = 0, total = 0 } = sync.summary;
+    parts.push(`${ok}/${total} operações OK, ${skipped} ignoradas, ${errors} com erro`);
   }
 
-  parts.push('Jogos atualizados.');
   return parts.join(' ');
 }
 

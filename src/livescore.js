@@ -221,6 +221,20 @@ function collectDateApiFixtures(payload, competitionId) {
     .flatMap((stage) => (stage.Events ?? []).map((event) => normalizeLiveScoreDateEvent(event, stage)));
 }
 
+function fixturePairKey(fixture) {
+  if (!fixture?.date || !fixture.homeCode || !fixture.awayCode) return null;
+  return `${fixture.date.slice(0, 10)}:${fixture.homeCode}:${fixture.awayCode}`;
+}
+
+function upsertFixture(fixturesById, fixtureIdsByPair, fixture) {
+  const pairKey = fixturePairKey(fixture);
+  const existingId = pairKey ? fixtureIdsByPair.get(pairKey) : null;
+  const id = existingId ?? fixture.externalId;
+
+  fixturesById.set(id, fixture);
+  if (pairKey) fixtureIdsByPair.set(pairKey, id);
+}
+
 function extractNextData(html) {
   const match = html.match(NEXT_DATA_RE);
   if (!match) return null;
@@ -333,7 +347,11 @@ export class LiveScoreClient {
       // Fixtures alone are enough for scheduled/live games; results are a best-effort enrichment.
     }
 
-    const byId = new Map(events.filter((event) => event?.id).map((event) => [String(event.id), normalizeLiveScoreEvent(event)]));
+    const byId = new Map();
+    const idsByPair = new Map();
+    for (const sourceEvent of events.filter((event) => event?.id)) {
+      upsertFixture(byId, idsByPair, normalizeLiveScoreEvent(sourceEvent));
+    }
 
     // Always call the date API for today and yesterday (UTC) to catch games the tournament page
     // misses — e.g. games that started near midnight UTC and fall on a different local date.
@@ -347,8 +365,8 @@ export class LiveScoreClient {
       try {
         const dateFixtures = await this.fetchDateFixtures(dateKey);
         for (const fixture of dateFixtures) {
-          // Date API overrides page data for known IDs; new IDs are added directly.
-          byId.set(fixture.externalId, fixture);
+          // Date API overrides page data for known IDs or same date/team pair.
+          upsertFixture(byId, idsByPair, fixture);
         }
       } catch {
         // The public date API is an enrichment for live score freshness; Next data remains the fallback.
