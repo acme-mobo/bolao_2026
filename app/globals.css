@@ -174,13 +174,20 @@ button { cursor: pointer; border: 0; }
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+  font-family: inherit;
   text-decoration: none;
+  cursor: pointer;
   transition: all 0.15s;
 }
 
-.topbarLink:hover {
+.topbarLink:hover:not(:disabled) {
   background: var(--glass-hover);
   color: var(--text);
+}
+
+.topbarLink:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ─── Theme toggle ───────────────────────────────── */

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import {
   AlertTriangle, CalendarDays, Check, CheckCircle, ChevronDown,
-  Clock, HelpCircle, LogOut, Moon, Pencil, Save, Settings, Shield, Sun,
+  Clock, HelpCircle, LogOut, Moon, Pencil, RefreshCw, Save, Settings, Shield, Sun,
   Trash2, Trophy, Users, X,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -846,6 +846,7 @@ export default function HomePage() {
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
   const [scoringModal, setScoringModal] = useState(false);
   const [showSessionLoader, setShowSessionLoader] = useState(false);
+  const [syncingScores, setSyncingScores] = useState(false);
   const toastIdRef = useRef(0);
   const initialSectionSetRef = useRef(false);
   const userSelectedSectionRef = useRef(false);
@@ -958,6 +959,13 @@ export default function HomePage() {
     setProfile(me.user);
     setActivePool(poolData.pool);
     setSelectedPoolId(poolData.pool.id);
+  }
+
+  function syncToastMessage(sync) {
+    const changed = (sync?.ran ?? []).reduce((total, op) => total + Number(op.changes ?? 0), 0);
+    if (changed > 0) return `${changed} jogo(s) atualizado(s).`;
+    if (sync?.errors?.length) return `Erro no sync: ${sync.errors[0].error ?? 'sem detalhe'}`;
+    return 'Sync concluído: nenhum placar mudou.';
   }
 
   useEffect(() => {
@@ -1126,6 +1134,23 @@ export default function HomePage() {
       addToast('Nome atualizado!', 'success');
     } catch (err) {
       addToast(err.message, 'error');
+    }
+  }
+
+  async function forceSyncScores() {
+    if (!token || syncingScores || profile?.role !== 'admin') return;
+    setSyncingScores(true);
+    try {
+      const { sync } = await api('/admin/sync', token, { method: 'POST' });
+      await loadPublic({ fresh: true });
+      if (selectedPoolId) {
+        await loadPoolData(selectedPoolId, token, { silent: true });
+      }
+      addToast(syncToastMessage(sync), sync?.errors?.length ? 'error' : 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setSyncingScores(false);
     }
   }
 
@@ -1406,6 +1431,19 @@ export default function HomePage() {
               <CalendarDays size={15} />
               <span>Hoje</span>
             </Link>
+          )}
+          {profile?.role === 'admin' && (
+            <button
+              type="button"
+              className="topbarLink"
+              onClick={forceSyncScores}
+              disabled={syncingScores || !token}
+              title="Sincronizar placares agora"
+              aria-label="Sincronizar placares agora"
+            >
+              <RefreshCw size={15} />
+              <span>{syncingScores ? 'Sync...' : 'Sync'}</span>
+            </button>
           )}
           {profile?.role === 'admin' && (
             <Link className="topbarLink" href="/admin/placares" title="Editar placares manualmente">
