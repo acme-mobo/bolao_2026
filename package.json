@@ -20,7 +20,8 @@
     "seed": "node src/seed.js",
     "seed:knockout": "node src/seed-knockout-matches.js",
     "purge": "node src/purge-users.js",
-    "test": "NODE_ENV=test node --test"
+    "test": "NODE_ENV=test node --test",
+    "validate": "./scripts/validate.sh"
   },
   "engines": {
     "node": ">=20"
