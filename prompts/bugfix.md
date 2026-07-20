@@ -12,10 +12,18 @@ Contexto:
 - Arquivos ou rota relacionados:
 - Como reproduzir:
 
+Escopo:
+- Deve mudar:
+- Fora de escopo:
+
+Criterios de aceite:
+-
+
 Regras:
 - Analise a estrutura antes de editar.
 - Preserve mudancas locais existentes.
 - Faca a menor mudanca coerente com o codigo atual.
 - Adicione ou ajuste teste quando o bug envolver regra, API, store ou sync.
-- Rode a validacao adequada e diga exatamente o que foi executado.
+- Rode primeiro o teste mais proximo e depois a validacao adequada ao escopo.
+- No final, resuma causa, correcao, arquivos alterados e comandos executados.
 ```

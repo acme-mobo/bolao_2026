@@ -47,7 +47,7 @@ test('createLiveScoreProvider usa football-data por configuracao', () => {
 test('createLiveScoreProvider usa LiveScore por configuracao', () => {
   config.liveScoreProvider = 'livescore';
 
-  const provider = createLiveScoreProvider({ fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/' });
+  const provider = createLiveScoreProvider({ fixturesUrl: 'https://www.livescore.com/pt/futebol/international/example-competition/fixtures/' });
 
   assert.equal(provider instanceof LiveScoreLiveScoreProvider, true);
   assert.equal(provider.getStatus().provider, 'livescore');
@@ -92,7 +92,7 @@ test('applyLiveFixturesToDb atualiza partida local com fixture do LiveScore', ()
         awayCode: 'RSA',
         homeGoals: 2,
         awayGoals: 0,
-        updatedAt: '2026-06-11T21:00:00.000Z',
+        updatedAt: '2030-06-11T21:00:00.000Z',
       },
     ],
     { provider: 'livescore', configured: true },
@@ -138,7 +138,7 @@ test('applyLiveFixturesToDb atualiza partida por externalMatchId quando siglas n
         awayCode: 'RSA',
         homeGoals: 0,
         awayGoals: 0,
-        updatedAt: '2026-06-11T19:05:00.000Z',
+        updatedAt: '2030-06-11T19:05:00.000Z',
       },
     ],
     { provider: 'livescore', configured: true },
@@ -157,12 +157,12 @@ test('FootballDataLiveScoreProvider normaliza fixtures para contrato comum', asy
     matches: [
       {
         id: 1001,
-        utcDate: '2026-06-11T19:00:00Z',
+        utcDate: '2030-06-11T19:00:00Z',
         status: 'FINISHED',
         homeTeam: { tla: 'MEX', name: 'Mexico' },
         awayTeam: { tla: 'RSA', name: 'Africa do Sul' },
         score: { fullTime: { home: 2, away: 0 } },
-        lastUpdated: '2026-06-11T21:00:00Z',
+        lastUpdated: '2030-06-11T21:00:00Z',
       },
     ],
   });
@@ -170,7 +170,7 @@ test('FootballDataLiveScoreProvider normaliza fixtures para contrato comum', asy
   const provider = new FootballDataLiveScoreProvider({
     token: 'test-token',
     competitionCode: 'WC',
-    season: 2026,
+    season: 2030,
   });
 
   const fixtures = await provider.fetchLiveFixtures();
@@ -180,7 +180,7 @@ test('FootballDataLiveScoreProvider normaliza fixtures para contrato comum', asy
     {
       externalId: '1001',
       fixtureId: '1001',
-      date: '2026-06-11T19:00:00Z',
+      date: '2030-06-11T19:00:00Z',
       statusShort: 'FINISHED',
       statusElapsed: null,
       status: 'finished',
@@ -197,7 +197,7 @@ test('FootballDataLiveScoreProvider normaliza fixtures para contrato comum', asy
       homeGoals: 2,
       awayGoals: 0,
       rawStatus: 'FINISHED',
-      updatedAt: '2026-06-11T21:00:00Z',
+      updatedAt: '2030-06-11T21:00:00Z',
     },
   ]);
 });

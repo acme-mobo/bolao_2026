@@ -31,7 +31,7 @@ function htmlResponse(payload) {
 function event(overrides = {}) {
   return {
     id: '1417909',
-    startDateTimeString: '20260611190000',
+    startDateTimeString: '20300611190000',
     eventStatus: 'UPCOMING',
     statusDescription: 'UNKNOWN',
     homeTeamScore: '',
@@ -63,7 +63,7 @@ function payload(events) {
       initialData: {
         sections: [
           {
-            id: '734',
+            id: '999',
             events,
           },
         ],
@@ -75,7 +75,7 @@ function payload(events) {
 function dateApiEvent(overrides = {}) {
   return {
     Eid: '1417909',
-    Esd: 20260611190000,
+    Esd: 20300611190000,
     Eps: "27'",
     Esid: 2,
     Tr1: '1',
@@ -91,7 +91,7 @@ function dateApiPayload(events, stageOverrides = {}) {
   return {
     Stages: [
       {
-        CompId: '734',
+        CompId: '999',
         Snm: 'Group A',
         Events: events,
         ...stageOverrides,
@@ -101,7 +101,7 @@ function dateApiPayload(events, stageOverrides = {}) {
 }
 
 test('parseLiveScoreDate converte startDateTimeString como UTC', () => {
-  assert.equal(parseLiveScoreDate('20260611190000'), '2026-06-11T19:00:00.000Z');
+  assert.equal(parseLiveScoreDate('20300611190000'), '2030-06-11T19:00:00.000Z');
   assert.equal(parseLiveScoreDate('invalid'), null);
 });
 
@@ -111,7 +111,7 @@ test('normalizeLiveScoreEvent normaliza jogo UPCOMING real do LiveScore', () => 
   assert.deepEqual(fixture, {
     externalId: '1417909',
     fixtureId: '1417909',
-    date: '2026-06-11T19:00:00.000Z',
+    date: '2030-06-11T19:00:00.000Z',
     statusShort: 'UPCOMING',
     statusElapsed: null,
     status: 'scheduled',
@@ -163,7 +163,7 @@ test('normalizeLiveScoreDateEvent normaliza placar ao vivo do endpoint publico p
   const fixture = normalizeLiveScoreDateEvent(dateApiEvent(), { Snm: 'Group A' });
 
   assert.equal(fixture.externalId, '1417909');
-  assert.equal(fixture.date, '2026-06-11T19:00:00.000Z');
+  assert.equal(fixture.date, '2030-06-11T19:00:00.000Z');
   assert.equal(fixture.status, 'live');
   assert.equal(fixture.statusShort, "27'");
   assert.equal(fixture.statusElapsed, 27);
@@ -199,7 +199,7 @@ test('LiveScoreClient descobre buildId e usa JSON do Next', async () => {
   };
 
   const client = new LiveScoreClient({
-    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
+    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/example-competition/fixtures/',
     publicApiUrl: 'https://prod-cdn-public-api.livescore.com',
   });
 
@@ -207,8 +207,8 @@ test('LiveScoreClient descobre buildId e usa JSON do Next', async () => {
 
   // 2 fixture page calls + 2 results page calls + date-from-event + utcToday + utcYesterday = 7
   assert.equal(client.requestCount, 7);
-  assert.equal(calls[1], 'https://www.livescore.com/_next/data/test-build/pt/futebol/international/world-cup-2026/fixtures.json?sport=futebol&dateOrCategory=international&competitionOrStage=world-cup-2026');
-  assert.equal(calls[3], 'https://www.livescore.com/_next/data/test-build/pt/futebol/international/world-cup-2026/results.json?sport=futebol&dateOrCategory=international&competitionOrStage=world-cup-2026');
+  assert.equal(calls[1], 'https://www.livescore.com/_next/data/test-build/pt/futebol/international/example-competition/fixtures.json?sport=futebol&dateOrCategory=international&competitionOrStage=example-competition');
+  assert.equal(calls[3], 'https://www.livescore.com/_next/data/test-build/pt/futebol/international/example-competition/results.json?sport=futebol&dateOrCategory=international&competitionOrStage=example-competition');
   assert.ok(calls[4].includes('/v1/api/app/date/soccer/'));
   assert.equal(fixtures.length, 1);
   assert.equal(fixtures[0].externalId, '1417909');
@@ -218,7 +218,7 @@ test('LiveScoreClient descobre buildId e usa JSON do Next', async () => {
 test('LiveScoreClient sobrescreve placar defasado do Next com endpoint publico por data', async () => {
   globalThis.fetch = async (url) => {
     const text = String(url);
-    if (text.includes('/v1/api/app/date/soccer/20260611/0')) return jsonResponse(dateApiPayload([dateApiEvent()]));
+    if (text.includes('/v1/api/app/date/soccer/20300611/0')) return jsonResponse(dateApiPayload([dateApiEvent()]));
     if (!text.includes('/_next/data/')) return htmlResponse(payload([]));
     return jsonResponse(payload([event({
       eventStatus: 'LIVE',
@@ -229,7 +229,7 @@ test('LiveScoreClient sobrescreve placar defasado do Next com endpoint publico p
   };
 
   const client = new LiveScoreClient({
-    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
+    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/example-competition/fixtures/',
     publicApiUrl: 'https://prod-cdn-public-api.livescore.com',
   });
 
@@ -244,7 +244,7 @@ test('LiveScoreClient sobrescreve placar defasado do Next com endpoint publico p
 test('LiveScoreClient sobrescreve placar por par de times quando endpoint por data usa outro id', async () => {
   globalThis.fetch = async (url) => {
     const text = String(url);
-    if (text.includes('/v1/api/app/date/soccer/20260611/0')) {
+    if (text.includes('/v1/api/app/date/soccer/20300611/0')) {
       return jsonResponse(dateApiPayload([dateApiEvent({
         Eid: 'date-api-1001',
         Tr1: '2',
@@ -264,7 +264,7 @@ test('LiveScoreClient sobrescreve placar por par de times quando endpoint por da
   };
 
   const client = new LiveScoreClient({
-    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
+    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/example-competition/fixtures/',
     publicApiUrl: 'https://prod-cdn-public-api.livescore.com',
   });
 
@@ -285,7 +285,7 @@ test('LiveScoreClient usa __NEXT_DATA__ como fallback se JSON falhar', async () 
   };
 
   const client = new LiveScoreClient({
-    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
+    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/example-competition/fixtures/',
     publicApiUrl: 'https://prod-cdn-public-api.livescore.com',
   });
 
@@ -312,6 +312,7 @@ test('normalizeLiveScoreStandings normaliza tabela de grupos', () => {
                     {
                       rnk: 2,
                       Tid: '9025',
+                      Abr: 'MEX',
                       Tnm: 'México',
                       NmEn: 'Mexico',
                       Img: 'enet/6710.png',
@@ -369,7 +370,7 @@ test('LiveScoreClient busca standings no endpoint publico leagueTable', async ()
             Sid: '19986',
             Snm: 'Group A',
             LeagueTable: {
-              L: [{ Tables: [{ team: [{ rnk: 1, Tid: '9025', Tnm: 'México', NmEn: 'Mexico', pts: 0, pld: 0 }] }] }],
+              L: [{ Tables: [{ team: [{ rnk: 1, Tid: '9025', Abr: 'MEX', Tnm: 'México', NmEn: 'Mexico', pts: 0, pld: 0 }] }] }],
             },
           },
         ],
@@ -378,21 +379,21 @@ test('LiveScoreClient busca standings no endpoint publico leagueTable', async ()
     if (!String(url).includes('/_next/data/')) {
       return htmlResponse({
         buildId: 'test-build',
-        pageProps: { competitionId: '734', initialData: { sections: [] } },
+        pageProps: { competitionId: '999', initialData: { sections: [] } },
       });
     }
-    return jsonResponse({ pageProps: { competitionId: '734', initialData: { sections: [] } } });
+    return jsonResponse({ pageProps: { competitionId: '999', initialData: { sections: [] } } });
   };
 
   const client = new LiveScoreClient({
-    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/fixtures/',
-    standingsUrl: 'https://www.livescore.com/pt/futebol/international/world-cup-2026/standings/',
+    fixturesUrl: 'https://www.livescore.com/pt/futebol/international/example-competition/fixtures/',
+    standingsUrl: 'https://www.livescore.com/pt/futebol/international/example-competition/standings/',
     publicApiUrl: 'https://prod-cdn-public-api.livescore.com',
   });
 
   const standings = await client.fetchStandings();
 
-  assert.equal(calls[2], 'https://prod-cdn-public-api.livescore.com/v1/api/app/competition/734/leagueTable?locale=pt');
+  assert.equal(calls[2], 'https://prod-cdn-public-api.livescore.com/v1/api/app/competition/999/leagueTable?locale=pt');
   assert.equal(standings.length, 1);
   assert.equal(standings[0].teamCode, 'MEX');
 });
@@ -403,7 +404,7 @@ test('resolveAbr converte codigo ISO para FIFA em normalizeLiveScoreDateEvent', 
     Eid: '111',
     T1: [{ Abr: 'USA', NmEn: 'United States' }],
     T2: [{ Abr: 'PRY', NmEn: 'Paraguay' }],
-    Tr1: 1, Tr2: 0, Esid: 2, Esd: 20260613010000,
+    Tr1: 1, Tr2: 0, Esid: 2, Esd: 20300613010000,
   });
   assert.equal(fixtureIso.homeCode, 'USA');
   assert.equal(fixtureIso.awayCode, 'PAR');
@@ -413,7 +414,7 @@ test('resolveAbr converte codigo ISO para FIFA em normalizeLiveScoreDateEvent', 
     Eid: '222',
     T1: [{ Abr: 'QAT', NmEn: 'Qatar' }],
     T2: [{ Abr: 'CHE', NmEn: 'Switzerland' }],
-    Tr1: 0, Tr2: 0, Esid: 1, Esd: 20260613190000,
+    Tr1: 0, Tr2: 0, Esid: 1, Esd: 20300613190000,
   });
   assert.equal(fixtureChe.homeCode, 'QAT');
   assert.equal(fixtureChe.awayCode, 'SUI');
@@ -427,19 +428,7 @@ test('resolveAbr converte codigo ISO para FIFA em normalizeLiveScoreEvent', () =
     homeTeamScore: 1,
     awayTeamScore: 0,
     eventStatus: 'LIVE',
-    startDateTimeString: '20260613010000',
-  });
-  assert.equal(fixture.homeCode, 'USA');
-  assert.equal(fixture.awayCode, 'PAR');
-});
-
-test('normalizeLiveScoreDateEvent resolve times sem Abr por nome ingles', () => {
-  // Sem Abr, depende de NmEn → livescoreCodeOverrides
-  const fixture = normalizeLiveScoreDateEvent({
-    Eid: '444',
-    T1: [{ Abr: null, NmEn: 'United States' }],
-    T2: [{ Abr: null, NmEn: 'Paraguay' }],
-    Tr1: 1, Tr2: 0, Esid: 2, Esd: 20260613010000,
+    startDateTimeString: '20300613010000',
   });
   assert.equal(fixture.homeCode, 'USA');
   assert.equal(fixture.awayCode, 'PAR');

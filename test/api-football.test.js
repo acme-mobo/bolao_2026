@@ -21,10 +21,10 @@ test('ApiFootballClient conta request quando recebe resposta HTTP com sucesso', 
   const client = new ApiFootballClient({
     apiKey: 'test-key',
     leagueId: 1,
-    season: 2026,
+    season: 2030,
   });
 
-  const fixtures = await client.fetchDailyFixtures('2026-06-09');
+  const fixtures = await client.fetchDailyFixtures('2030-06-09');
 
   assert.deepEqual(fixtures, []);
   assert.equal(client.requestCount, 1);

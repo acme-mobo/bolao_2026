@@ -1,6 +1,6 @@
 # Arquitetura
 
-Bolao26 e um monolito Next.js com API HTTP compartilhada entre o ambiente serverless da Vercel e uma API Node local.
+O projeto e um monolito Next.js com API HTTP compartilhada entre o ambiente serverless da Vercel e uma API Node local.
 
 ## Camadas
 
@@ -17,7 +17,17 @@ Bolao26 e um monolito Next.js com API HTTP compartilhada entre o ambiente server
 
 `src/scoring.js`, `src/match-reference.js` e `src/validation.js` concentram regras reutilizaveis e devem continuar sem dependencia de runtime web.
 
-`src/live-score.js`, `src/livescore.js`, `src/api-football.js` e `src/wc-sync.js` cuidam de sincronizacao de placares e providers externos. Testes dessas areas devem usar fakes/mocks e evitar chamadas reais de rede.
+`src/live-score.js`, `src/livescore.js`, `src/api-football.js` e `src/competition-sync.js` cuidam de sincronizacao de placares e providers externos. Testes dessas areas devem usar fakes/mocks e evitar chamadas reais de rede.
+
+`src/seed.js` importa uma competicao a partir de JSON. `templates/` contem somente exemplos;
+dados reais de competicoes, usuarios e palpites nao devem ser versionados.
+
+## Direcao das dependencias
+
+- Paginas e adaptadores HTTP podem depender de regras e persistencia em `src/`.
+- Regras puras nao devem depender de Next.js, Firebase ou APIs externas.
+- Providers externos devem retornar dados normalizados antes de alterar o store.
+- O adaptador `app/api/[...path]/route.js` deve continuar sem regras de negocio.
 
 ## Fluxo de request
 
@@ -43,8 +53,16 @@ Em `DATA_STORE=firestore`, a API valida o token com Firebase Admin. Rotas legada
 
 ## Dados
 
-Os dados oficiais e seeds ficam em `src/world-cup-2026-data.js` e scripts `src/seed*.js`.
-Evite mudar dados oficiais junto com mudancas de regra ou UI.
+Os dados de cada edicao ficam fora do codigo e seguem o formato de
+`templates/competition.example.json`. O script generico `src/seed.js` importa esse arquivo.
+Evite misturar alteracoes de dados de uma competicao com mudancas de regra ou UI.
+
+## Pontos de extensao
+
+- Nova competicao: crie um JSON baseado no template e use `src/seed.js`.
+- Novo provider: implemente o contrato normalizado de `src/live-score.js`.
+- Nova regra de negocio: prefira um modulo puro em `src/` e um teste direto em `test/`.
+- Nova rota: implemente no router compartilhado e cubra via `createRouter`.
 
 ## Principio para mudancas
 

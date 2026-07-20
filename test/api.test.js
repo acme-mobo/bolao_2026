@@ -7,7 +7,19 @@ import test from 'node:test';
 import { createToken } from '../src/auth.js';
 import { createRouter } from '../src/routes.js';
 import { Store } from '../src/store.js';
-import { worldCup2026GroupMatches, worldCup2026Teams } from '../src/world-cup-2026-data.js';
+
+const TEST_TEAMS = [
+  { id: 'team_ALF', name: 'Time Alfa', code: 'ALF', group: 'A' },
+  { id: 'team_BET', name: 'Time Beta', code: 'BET', group: 'A' },
+  { id: 'team_GAM', name: 'Time Gama', code: 'GAM', group: 'B' },
+  { id: 'team_DEL', name: 'Time Delta', code: 'DEL', group: 'B' },
+];
+
+const TEST_MATCHES = [
+  { matchNumber: 1, group: 'A', homeCode: 'ALF', awayCode: 'BET', startsAt: '2030-06-11T19:00:00.000Z' },
+  { matchNumber: 2, group: 'A', homeCode: 'BET', awayCode: 'ALF', startsAt: '2030-06-11T22:00:00.000Z' },
+  { matchNumber: 3, group: 'B', homeCode: 'GAM', awayCode: 'DEL', startsAt: '2030-06-12T19:00:00.000Z' },
+];
 
 function createMockResponse() {
   const response = new EventEmitter();
@@ -24,7 +36,7 @@ function createMockResponse() {
 }
 
 async function createApi(options = {}) {
-  const store = new Store(path.join(os.tmpdir(), `bolao26-${Date.now()}-${Math.random()}.json`));
+  const store = new Store(path.join(os.tmpdir(), `bolao-${Date.now()}-${Math.random()}.json`));
   await store.load();
   return { store, router: createRouter(store, options) };
 }
@@ -126,16 +138,16 @@ test('matches carregam somente colecoes necessarias quando store suporta leitura
         {
           id: 'match_1',
           matchNumber: 1,
-          homeTeamId: 'team_MEX',
-          awayTeamId: 'team_RSA',
+          homeTeamId: 'team_ALF',
+          awayTeamId: 'team_BET',
           status: 'scheduled',
           homeGoals: null,
           awayGoals: null,
         },
       ],
       teams: [
-        { id: 'team_MEX', name: 'Mexico', code: 'MEX' },
-        { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA' },
+        { id: 'team_ALF', name: 'Time Alfa', code: 'ALF' },
+        { id: 'team_BET', name: 'Time Beta', code: 'BET' },
       ],
     },
     async load() {
@@ -178,11 +190,11 @@ test('retorna bolao ativo e inclui usuario automaticamente', async () => {
   });
 
   assert.equal(active.status, 200);
-  assert.equal(active.body.pool.id, 'pool_copa_2026');
-  assert.equal(active.body.pool.name, 'Bolao Copa 2026');
+  assert.equal(active.body.pool.id, 'pool_main');
+  assert.equal(active.body.pool.name, 'Bolao Principal');
   assert.equal(
     api.store.db.memberships.some(
-      (membership) => membership.poolId === 'pool_copa_2026' && membership.userId === register.body.user.id,
+      (membership) => membership.poolId === 'pool_main' && membership.userId === register.body.user.id,
     ),
     true,
   );
@@ -191,9 +203,9 @@ test('retorna bolao ativo e inclui usuario automaticamente', async () => {
 test('summary agrega partidas pela data local de Sao Paulo', async () => {
   const api = await createApi();
   await api.store.transaction((db) => {
-    db.teams = worldCup2026Teams.map(([name, code, group]) => ({ id: `team_${code}`, name, code, group }));
-    db.matches = worldCup2026GroupMatches.slice(0, 3).map(
-      ([matchNumber, group, homeCode, awayCode, startsAt, venue, city]) => ({
+    db.teams = TEST_TEAMS;
+    db.matches = TEST_MATCHES.map(
+      ({ matchNumber, group, homeCode, awayCode, startsAt }) => ({
         id: `match_${matchNumber}`,
         matchNumber,
         homeTeamId: `team_${homeCode}`,
@@ -202,43 +214,43 @@ test('summary agrega partidas pela data local de Sao Paulo', async () => {
         group,
         startsAt,
         lockAt: startsAt,
-        venue,
-        city,
+        venue: null,
+        city: null,
         status: 'scheduled',
         homeGoals: null,
         awayGoals: null,
-        createdAt: '2026-06-01T00:00:00.000Z',
+        createdAt: '2030-06-01T00:00:00.000Z',
       }),
     );
   });
 
-  const june11 = await request(api, '/matches/summary?date=2026-06-11');
+  const june11 = await request(api, '/matches/summary?date=2030-06-11');
   assert.equal(june11.status, 200);
   assert.deepEqual(Object.keys(june11.body), ['matches']);
   assert.deepEqual(june11.body.matches, [
     {
       matchNumber: 1,
       status: 'scheduled',
-      homeTeam: 'Mexico',
-      awayTeam: 'Africa do Sul',
-      homeCode: 'MEX',
-      awayCode: 'RSA',
+      homeTeam: 'Time Alfa',
+      awayTeam: 'Time Beta',
+      homeCode: 'ALF',
+      awayCode: 'BET',
       homeGoals: null,
       awayGoals: null,
     },
     {
       matchNumber: 2,
       status: 'scheduled',
-      homeTeam: 'Coreia do Sul',
-      awayTeam: 'Tchequia',
-      homeCode: 'KOR',
-      awayCode: 'CZE',
+      homeTeam: 'Time Beta',
+      awayTeam: 'Time Alfa',
+      homeCode: 'BET',
+      awayCode: 'ALF',
       homeGoals: null,
       awayGoals: null,
     },
   ]);
 
-  const june12 = await request(api, '/matches/summary?date=2026-06-12');
+  const june12 = await request(api, '/matches/summary?date=2030-06-12');
   assert.equal(june12.status, 200);
   assert.deepEqual(Object.keys(june12.body), ['matches']);
   assert.deepEqual(june12.body.matches.map((match) => match.matchNumber), [3]);
@@ -252,7 +264,7 @@ test('summary agrega partidas pela data local de Sao Paulo', async () => {
 test('groups inclui tabela quando standings foram sincronizados', async () => {
   const api = await createApi();
   await api.store.transaction((db) => {
-    db.teams = worldCup2026Teams.slice(0, 2).map(([name, code, group]) => ({ id: `team_${code}`, name, code, group }));
+    db.teams = TEST_TEAMS.slice(0, 2);
     db.matches = [];
     db.standings = [
       {
@@ -260,8 +272,8 @@ test('groups inclui tabela quando standings foram sincronizados', async () => {
         group: 'A',
         rank: 2,
         teamId: '9025',
-        teamCode: 'MEX',
-        teamName: 'México',
+        teamCode: 'ALF',
+        teamName: 'Time Alfa',
         points: 4,
         played: 2,
         won: 1,
@@ -276,8 +288,8 @@ test('groups inclui tabela quando standings foram sincronizados', async () => {
         group: 'A',
         rank: 1,
         teamId: '9287',
-        teamCode: 'RSA',
-        teamName: 'África do Sul',
+        teamCode: 'BET',
+        teamName: 'Time Beta',
         points: 6,
         played: 2,
         won: 2,
@@ -293,7 +305,7 @@ test('groups inclui tabela quando standings foram sincronizados', async () => {
   const response = await request(api, '/groups');
 
   assert.equal(response.status, 200);
-  assert.deepEqual(response.body.groups[0].table.map((team) => team.teamCode), ['RSA', 'MEX']);
+  assert.deepEqual(response.body.groups[0].table.map((team) => team.teamCode), ['BET', 'ALF']);
   assert.equal(response.body.groups[0].table[0].points, 6);
 });
 
@@ -308,15 +320,15 @@ test('predictions reconhece palpites salvos com id legado do jogo', async () => 
 
   await api.store.transaction((db) => {
     db.teams = [
-      { id: 'team_MEX', name: 'Mexico', code: 'MEX', group: 'A' },
-      { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA', group: 'A' },
+      { id: 'team_ALF', name: 'Time Alfa', code: 'ALF', group: 'A' },
+      { id: 'team_BET', name: 'Time Beta', code: 'BET', group: 'A' },
     ];
     db.matches = [
       {
         id: 'current_match_1',
         matchNumber: 1,
-        homeTeamId: 'team_MEX',
-        awayTeamId: 'team_RSA',
+        homeTeamId: 'team_ALF',
+        awayTeamId: 'team_BET',
         stage: 'group',
         group: 'A',
         startsAt: '2099-06-11T19:00:00.000Z',
@@ -326,12 +338,12 @@ test('predictions reconhece palpites salvos com id legado do jogo', async () => 
         awayGoals: null,
       },
     ];
-    db.pools = [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: userId, isActive: true }];
-    db.memberships = [{ poolId: 'pool_copa_2026', userId, joinedAt: '2026-06-01T00:00:00.000Z' }];
+    db.pools = [{ id: 'pool_main', name: 'Bolao Principal', ownerId: userId, isActive: true }];
+    db.memberships = [{ poolId: 'pool_main', userId, joinedAt: '2030-06-01T00:00:00.000Z' }];
     db.predictions = [
       {
         id: 'pred_legacy',
-        poolId: 'pool_copa_2026',
+        poolId: 'pool_main',
         userId,
         matchId: 'match_1',
         homeGoals: 2,
@@ -340,7 +352,7 @@ test('predictions reconhece palpites salvos com id legado do jogo', async () => 
     ];
   });
 
-  const list = await request(api, '/pools/pool_copa_2026/predictions', {
+  const list = await request(api, '/pools/pool_main/predictions', {
     headers: { authorization: `Bearer ${token}` },
   });
 
@@ -348,7 +360,7 @@ test('predictions reconhece palpites salvos com id legado do jogo', async () => 
   assert.equal(list.body.predictions[0].matchId, 'current_match_1');
   assert.equal(list.body.predictions[0].legacyMatchId, 'match_1');
 
-  const update = await request(api, '/pools/pool_copa_2026/predictions', {
+  const update = await request(api, '/pools/pool_main/predictions', {
     method: 'POST',
     headers: { authorization: `Bearer ${token}` },
     body: JSON.stringify({ matchId: 'current_match_1', homeGoals: 3, awayGoals: 0 }),
@@ -374,15 +386,15 @@ test('router mantem transacao de palpite isolada de loads concorrentes', async (
   const fullDb = {
     users: [user],
     teams: [
-      { id: 'team_MEX', name: 'Mexico', code: 'MEX', group: 'A' },
-      { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA', group: 'A' },
+      { id: 'team_ALF', name: 'Time Alfa', code: 'ALF', group: 'A' },
+      { id: 'team_BET', name: 'Time Beta', code: 'BET', group: 'A' },
     ],
     matches: [
       {
         id: 'match_1',
         matchNumber: 1,
-        homeTeamId: 'team_MEX',
-        awayTeamId: 'team_RSA',
+        homeTeamId: 'team_ALF',
+        awayTeamId: 'team_BET',
         stage: 'group',
         group: 'A',
         startsAt: '2099-06-11T19:00:00.000Z',
@@ -392,8 +404,8 @@ test('router mantem transacao de palpite isolada de loads concorrentes', async (
         awayGoals: null,
       },
     ],
-    pools: [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: user.id, isActive: true }],
-    memberships: [{ poolId: 'pool_copa_2026', userId: user.id, joinedAt: '2026-06-01T00:00:00.000Z' }],
+    pools: [{ id: 'pool_main', name: 'Bolao Principal', ownerId: user.id, isActive: true }],
+    memberships: [{ poolId: 'pool_main', userId: user.id, joinedAt: '2030-06-01T00:00:00.000Z' }],
     predictions: [],
     standings: [],
   };
@@ -447,7 +459,7 @@ test('router mantem transacao de palpite isolada de loads concorrentes', async (
   const api = { store, router: createRouter(store) };
   const token = createToken(user);
 
-  const postPromise = request(api, '/pools/pool_copa_2026/predictions', {
+  const postPromise = request(api, '/pools/pool_main/predictions', {
     method: 'POST',
     headers: { authorization: `Bearer ${token}` },
     body: JSON.stringify({ matchId: 'match_1', homeGoals: 2, awayGoals: 1 }),
@@ -475,15 +487,15 @@ test('predictions bloqueia apostas nos 5 minutos antes do inicio', async () => {
 
   await api.store.transaction((db) => {
     db.teams = [
-      { id: 'team_MEX', name: 'Mexico', code: 'MEX', group: 'A' },
-      { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA', group: 'A' },
+      { id: 'team_ALF', name: 'Time Alfa', code: 'ALF', group: 'A' },
+      { id: 'team_BET', name: 'Time Beta', code: 'BET', group: 'A' },
     ];
     db.matches = [
       {
         id: 'match_1',
         matchNumber: 1,
-        homeTeamId: 'team_MEX',
-        awayTeamId: 'team_RSA',
+        homeTeamId: 'team_ALF',
+        awayTeamId: 'team_BET',
         stage: 'group',
         group: 'A',
         startsAt,
@@ -493,12 +505,12 @@ test('predictions bloqueia apostas nos 5 minutos antes do inicio', async () => {
         awayGoals: null,
       },
     ];
-    db.pools = [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: userId, isActive: true }];
-    db.memberships = [{ poolId: 'pool_copa_2026', userId, joinedAt: '2026-06-01T00:00:00.000Z' }];
+    db.pools = [{ id: 'pool_main', name: 'Bolao Principal', ownerId: userId, isActive: true }];
+    db.memberships = [{ poolId: 'pool_main', userId, joinedAt: '2030-06-01T00:00:00.000Z' }];
   });
 
   await assert.rejects(
-    () => request(api, '/pools/pool_copa_2026/predictions', {
+    () => request(api, '/pools/pool_main/predictions', {
       method: 'POST',
       headers: { authorization: `Bearer ${token}` },
       body: JSON.stringify({ matchId: 'match_1', homeGoals: 2, awayGoals: 0 }),
@@ -535,12 +547,12 @@ test('predictions bloqueia apostas em jogo de mata-mata sem times definidos', as
         awayGoals: null,
       },
     ];
-    db.pools = [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: userId, isActive: true }];
-    db.memberships = [{ poolId: 'pool_copa_2026', userId, joinedAt: '2026-06-01T00:00:00.000Z' }];
+    db.pools = [{ id: 'pool_main', name: 'Bolao Principal', ownerId: userId, isActive: true }];
+    db.memberships = [{ poolId: 'pool_main', userId, joinedAt: '2030-06-01T00:00:00.000Z' }];
   });
 
   await assert.rejects(
-    () => request(api, '/pools/pool_copa_2026/predictions', {
+    () => request(api, '/pools/pool_main/predictions', {
       method: 'POST',
       headers: { authorization: `Bearer ${token}` },
       body: JSON.stringify({ matchId: 'match_90', homeGoals: 2, awayGoals: 1 }),
@@ -560,30 +572,30 @@ test('leaderboard recalcula pontos com placar de jogo em andamento', async () =>
 
   await api.store.transaction((db) => {
     db.teams = [
-      { id: 'team_MEX', name: 'Mexico', code: 'MEX', group: 'A' },
-      { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA', group: 'A' },
+      { id: 'team_ALF', name: 'Time Alfa', code: 'ALF', group: 'A' },
+      { id: 'team_BET', name: 'Time Beta', code: 'BET', group: 'A' },
     ];
     db.matches = [
       {
         id: 'match_1',
         matchNumber: 1,
-        homeTeamId: 'team_MEX',
-        awayTeamId: 'team_RSA',
+        homeTeamId: 'team_ALF',
+        awayTeamId: 'team_BET',
         stage: 'group',
         group: 'A',
-        startsAt: '2026-06-11T19:00:00.000Z',
-        lockAt: '2026-06-11T19:00:00.000Z',
+        startsAt: '2030-06-11T19:00:00.000Z',
+        lockAt: '2030-06-11T19:00:00.000Z',
         status: 'live',
         homeGoals: 1,
         awayGoals: 0,
       },
     ];
-    db.pools = [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: userId, isActive: true }];
-    db.memberships = [{ poolId: 'pool_copa_2026', userId, joinedAt: '2026-06-01T00:00:00.000Z' }];
+    db.pools = [{ id: 'pool_main', name: 'Bolao Principal', ownerId: userId, isActive: true }];
+    db.memberships = [{ poolId: 'pool_main', userId, joinedAt: '2030-06-01T00:00:00.000Z' }];
     db.predictions = [
       {
         id: 'pred_live',
-        poolId: 'pool_copa_2026',
+        poolId: 'pool_main',
         userId,
         matchId: 'match_1',
         homeGoals: 1,
@@ -592,7 +604,7 @@ test('leaderboard recalcula pontos com placar de jogo em andamento', async () =>
     ];
   });
 
-  const response = await request(api, '/pools/pool_copa_2026/leaderboard', {
+  const response = await request(api, '/pools/pool_main/leaderboard', {
     headers: { authorization: `Bearer ${token}` },
   });
 
@@ -612,30 +624,30 @@ test('palpites dos jogadores ficam visiveis em jogo ao vivo', async () => {
 
   await api.store.transaction((db) => {
     db.teams = [
-      { id: 'team_MEX', name: 'Mexico', code: 'MEX', group: 'A' },
-      { id: 'team_RSA', name: 'Africa do Sul', code: 'RSA', group: 'A' },
+      { id: 'team_ALF', name: 'Time Alfa', code: 'ALF', group: 'A' },
+      { id: 'team_BET', name: 'Time Beta', code: 'BET', group: 'A' },
     ];
     db.matches = [
       {
         id: 'match_1',
         matchNumber: 1,
-        homeTeamId: 'team_MEX',
-        awayTeamId: 'team_RSA',
+        homeTeamId: 'team_ALF',
+        awayTeamId: 'team_BET',
         stage: 'group',
         group: 'A',
-        startsAt: '2026-06-11T19:00:00.000Z',
-        lockAt: '2026-06-11T19:00:00.000Z',
+        startsAt: '2030-06-11T19:00:00.000Z',
+        lockAt: '2030-06-11T19:00:00.000Z',
         status: 'live',
         homeGoals: 1,
         awayGoals: 0,
       },
     ];
-    db.pools = [{ id: 'pool_copa_2026', name: 'Bolao Copa 2026', ownerId: userId, isActive: true }];
-    db.memberships = [{ poolId: 'pool_copa_2026', userId, joinedAt: '2026-06-01T00:00:00.000Z' }];
+    db.pools = [{ id: 'pool_main', name: 'Bolao Principal', ownerId: userId, isActive: true }];
+    db.memberships = [{ poolId: 'pool_main', userId, joinedAt: '2030-06-01T00:00:00.000Z' }];
     db.predictions = [
       {
         id: 'pred_live',
-        poolId: 'pool_copa_2026',
+        poolId: 'pool_main',
         userId,
         matchId: 'match_1',
         homeGoals: 1,
@@ -644,7 +656,7 @@ test('palpites dos jogadores ficam visiveis em jogo ao vivo', async () => {
     ];
   });
 
-  const response = await request(api, '/pools/pool_copa_2026/matches/match_1/predictions', {
+  const response = await request(api, '/pools/pool_main/matches/match_1/predictions', {
     headers: { authorization: `Bearer ${token}` },
   });
 
@@ -663,19 +675,19 @@ test('sincroniza resultado via provider de live score', async () => {
         {
           externalId: '1001',
           status: 'finished',
-          homeCode: 'MEX',
-          awayCode: 'RSA',
+          homeCode: 'ALF',
+          awayCode: 'BET',
           homeGoals: 2,
           awayGoals: 0,
-          lastUpdated: '2026-06-11T21:00:00.000Z',
+          lastUpdated: '2030-06-11T21:00:00.000Z',
         },
       ];
     },
   };
   const api = await createApi({ liveScoreProvider: fakeProvider });
   await api.store.transaction((db) => {
-    db.teams = worldCup2026Teams.map(([name, code, group]) => ({ id: `team_${code}`, name, code, group }));
-    db.matches = worldCup2026GroupMatches.slice(0, 1).map(([matchNumber, group, homeCode, awayCode, startsAt]) => ({
+    db.teams = TEST_TEAMS;
+    db.matches = TEST_MATCHES.slice(0, 1).map(({ matchNumber, group, homeCode, awayCode, startsAt }) => ({
       id: 'match_1',
       matchNumber,
       homeTeamId: `team_${homeCode}`,
@@ -687,7 +699,7 @@ test('sincroniza resultado via provider de live score', async () => {
       status: 'scheduled',
       homeGoals: null,
       awayGoals: null,
-      createdAt: '2026-06-01T00:00:00.000Z',
+      createdAt: '2030-06-01T00:00:00.000Z',
     }));
   });
 

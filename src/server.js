@@ -12,5 +12,5 @@ server.listen(config.port, () => {
     console.error('Falha ao carregar store', error);
     process.exitCode = 1;
   });
-  console.log(`Bolao26 API listening on http://localhost:${config.port}`);
+  console.log(`Bolao API listening on http://localhost:${config.port}`);
 });

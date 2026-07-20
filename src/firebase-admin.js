@@ -20,14 +20,15 @@ function credentialFromConfig() {
 }
 
 export function getAdminApp() {
+  const appName = 'bolao-app';
   return (
-    getApps().find((app) => app.name === 'bolao26') ??
+    getApps().find((app) => app.name === appName) ??
     initializeApp(
       {
         credential: credentialFromConfig(),
         projectId: config.firebaseProjectId || config.firebaseWebProjectId || undefined,
       },
-      'bolao26',
+      appName,
     )
   );
 }

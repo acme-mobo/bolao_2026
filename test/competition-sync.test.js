@@ -15,7 +15,7 @@ import {
   hasKnownTodayMatches,
   isInsideLiveWindow,
   shouldRunLiveSync,
-} from '../src/wc-sync.js';
+} from '../src/competition-sync.js';
 import { config } from '../src/config.js';
 
 const originalBudget = config.apiFootballSyncDailyBudget;
@@ -24,18 +24,18 @@ afterEach(() => {
   config.apiFootballSyncDailyBudget = originalBudget;
 });
 
-test('plano free bloqueia endpoints por season mas permite fixtures por data', () => {
-  const capabilities = getApiFootballCapabilities({ plan: 'free', season: 2026 });
+test('plano free bloqueia endpoints por temporada mas permite fixtures por data', () => {
+  const capabilities = getApiFootballCapabilities({ plan: 'free', season: 2030 });
 
   assert.equal(capabilities.canSyncSeasonFixtures, false);
   assert.equal(capabilities.canSyncStandings, false);
   assert.equal(capabilities.canSyncDailyFixtures, true);
   assert.equal(capabilities.canSyncLive, true);
-  assert.match(capabilities.seasonUnsupportedReason, /Free.*season=2026/);
+  assert.match(capabilities.seasonUnsupportedReason, /Free.*season=2030/);
 });
 
-test('plano paid libera sync completo da Copa 2026', () => {
-  const capabilities = getApiFootballCapabilities({ plan: 'paid', season: 2026 });
+test('plano paid libera sync completo da competição', () => {
+  const capabilities = getApiFootballCapabilities({ plan: 'paid', season: 2030 });
 
   assert.equal(capabilities.canSyncSeasonFixtures, true);
   assert.equal(capabilities.canSyncStandings, true);
@@ -135,42 +135,43 @@ test('budget invalido volta para limite diario real', () => {
 });
 
 test('calendario local identifica dias com e sem jogos conhecidos', () => {
-  const june10 = getLocalFixturesForDate('2026-06-10');
-  const june11 = getLocalFixturesForDate('2026-06-11');
+  const fixtures = [{ fixtureId: 'match_1', date: '2030-06-11T19:00:00.000Z' }];
+  const june10 = getLocalFixturesForDate('2030-06-10', fixtures);
+  const june11 = getLocalFixturesForDate('2030-06-11', fixtures);
 
   assert.equal(hasKnownTodayMatches(june10), false);
   assert.equal(hasKnownTodayMatches(june11), true);
-  assert.equal(june11[0].fixtureId, 1);
+  assert.equal(june11[0].fixtureId, 'match_1');
 });
 
 test('janela de live considera uma hora antes ate tres horas depois', () => {
-  const fixtures = [{ date: '2026-06-11T19:00:00.000Z' }];
+  const fixtures = [{ date: '2030-06-11T19:00:00.000Z' }];
 
-  assert.equal(isInsideLiveWindow(fixtures, new Date('2026-06-11T17:59:59.000Z')), false);
-  assert.equal(isInsideLiveWindow(fixtures, new Date('2026-06-11T18:00:00.000Z')), true);
-  assert.equal(isInsideLiveWindow(fixtures, new Date('2026-06-11T22:00:00.000Z')), true);
-  assert.equal(isInsideLiveWindow(fixtures, new Date('2026-06-11T22:00:01.000Z')), false);
+  assert.equal(isInsideLiveWindow(fixtures, new Date('2030-06-11T17:59:59.000Z')), false);
+  assert.equal(isInsideLiveWindow(fixtures, new Date('2030-06-11T18:00:00.000Z')), true);
+  assert.equal(isInsideLiveWindow(fixtures, new Date('2030-06-11T22:00:00.000Z')), true);
+  assert.equal(isInsideLiveWindow(fixtures, new Date('2030-06-11T22:00:01.000Z')), false);
 });
 
 test('janela de live ignora dias sem jogo conhecido', () => {
-  assert.equal(isInsideLiveWindow([], new Date('2026-06-11T19:00:00.000Z')), false);
+  assert.equal(isInsideLiveWindow([], new Date('2030-06-11T19:00:00.000Z')), false);
 });
 
 test('intervalo de live usa 3 minutos em jogo e janelas mais baratas fora dele', () => {
-  const fixture = { date: '2026-06-11T19:00:00.000Z', status: 'scheduled' };
+  const fixture = { date: '2030-06-11T19:00:00.000Z', status: 'scheduled' };
 
-  assert.equal(getLiveSyncInterval([fixture], new Date('2026-06-11T18:20:00.000Z')), 10);
-  assert.equal(getLiveSyncInterval([fixture], new Date('2026-06-11T18:50:00.000Z')), 5);
-  assert.equal(getLiveSyncInterval([fixture], new Date('2026-06-11T19:30:00.000Z')), 3);
-  assert.equal(getLiveSyncInterval([{ ...fixture, status: 'live' }], new Date('2026-06-11T20:00:00.000Z')), 3);
-  assert.equal(getLiveSyncInterval([fixture], new Date('2026-06-11T22:00:00.000Z')), 10);
+  assert.equal(getLiveSyncInterval([fixture], new Date('2030-06-11T18:20:00.000Z')), 10);
+  assert.equal(getLiveSyncInterval([fixture], new Date('2030-06-11T18:50:00.000Z')), 5);
+  assert.equal(getLiveSyncInterval([fixture], new Date('2030-06-11T19:30:00.000Z')), 3);
+  assert.equal(getLiveSyncInterval([{ ...fixture, status: 'live' }], new Date('2030-06-11T20:00:00.000Z')), 3);
+  assert.equal(getLiveSyncInterval([fixture], new Date('2030-06-11T22:00:00.000Z')), 10);
 });
 
 test('intervalo de live ignora jogos finalizados', () => {
   assert.equal(
     getLiveSyncInterval(
-      [{ date: '2026-06-11T19:00:00.000Z', status: 'finished' }],
-      new Date('2026-06-11T20:00:00.000Z'),
+      [{ date: '2030-06-11T19:00:00.000Z', status: 'finished' }],
+      new Date('2030-06-11T20:00:00.000Z'),
     ),
     null,
   );
@@ -213,8 +214,8 @@ test('force manual roda live mesmo fora da janela local', () => {
 
 test('buildSyncLogEntry monta log resumido sem payload bruto', () => {
   const entry = buildSyncLogEntry({
-    startedAt: '2026-06-09T18:00:00.000Z',
-    finishedAt: '2026-06-09T18:00:02.500Z',
+    startedAt: '2030-06-09T18:00:00.000Z',
+    finishedAt: '2030-06-09T18:00:02.500Z',
     mode: 'normal',
     plan: 'free',
     usedBefore: 7,
@@ -228,8 +229,8 @@ test('buildSyncLogEntry monta log resumido sem payload bruto', () => {
   });
 
   assert.deepEqual(entry, {
-    startedAt: '2026-06-09T18:00:00.000Z',
-    finishedAt: '2026-06-09T18:00:02.500Z',
+    startedAt: '2030-06-09T18:00:00.000Z',
+    finishedAt: '2030-06-09T18:00:02.500Z',
     durationMs: 2500,
     mode: 'normal',
     plan: 'free',
@@ -271,8 +272,8 @@ test('buildSyncResponse destaca status, quota e resumo das operacoes', () => {
   config.apiFootballSyncDailyBudget = 60;
 
   const response = buildSyncResponse({
-    startedAt: '2026-06-09T18:00:00.000Z',
-    finishedAt: '2026-06-09T18:00:01.000Z',
+    startedAt: '2030-06-09T18:00:00.000Z',
+    finishedAt: '2030-06-09T18:00:01.000Z',
     status: 'ok',
     mode: 'normal',
     plan: 'free',
@@ -308,8 +309,8 @@ test('buildCompactSyncResponse resume resposta do cron com provider ativo', () =
   config.apiFootballSyncDailyBudget = 60;
 
   const response = buildSyncResponse({
-    startedAt: '2026-06-11T16:00:00.000Z',
-    finishedAt: '2026-06-11T16:00:02.000Z',
+    startedAt: '2030-06-11T16:00:00.000Z',
+    finishedAt: '2030-06-11T16:00:02.000Z',
     status: 'ok',
     mode: 'normal',
     plan: 'free',
@@ -349,8 +350,8 @@ test('buildCompactSyncResponse resume resposta do cron com provider ativo', () =
 
 test('buildCompactSyncResponse alerta quando provider ativo nao e livescore', () => {
   const response = buildSyncResponse({
-    startedAt: '2026-06-11T16:00:00.000Z',
-    finishedAt: '2026-06-11T16:00:02.000Z',
+    startedAt: '2030-06-11T16:00:00.000Z',
+    finishedAt: '2030-06-11T16:00:02.000Z',
     status: 'error',
     mode: 'normal',
     plan: 'free',

@@ -97,7 +97,7 @@ export class ApiFootballClient {
     return body;
   }
 
-  // Filtra só jogos da Copa 2026 — funciona mesmo quando a API retorna dados de outras ligas
+  // Filtra a liga e a temporada configuradas quando a API retorna outras competições.
   _filterAndNormalize(response) {
     return response
       .filter((r) => r.league.id === this.leagueId && Number(r.league.season) === this.season)

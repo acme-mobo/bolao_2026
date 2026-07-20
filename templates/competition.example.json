@@ -1,0 +1,30 @@
+{
+  "teams": [
+    { "name": "Time Alfa", "code": "ALF", "group": "A", "flag": "🏳️" },
+    { "name": "Time Beta", "code": "BET", "group": "A", "flag": "🏳️" },
+    { "name": "Time Gama", "code": "GAM", "group": "B", "flag": "🏳️" },
+    { "name": "Time Delta", "code": "DEL", "group": "B", "flag": "🏳️" }
+  ],
+  "matches": [
+    {
+      "matchNumber": 1,
+      "stage": "group",
+      "group": "A",
+      "homeCode": "ALF",
+      "awayCode": "BET",
+      "startsAt": "2030-06-01T19:00:00.000Z",
+      "venue": "Estádio Exemplo",
+      "city": "Cidade Exemplo"
+    },
+    {
+      "matchNumber": 2,
+      "stage": "group",
+      "group": "B",
+      "homeCode": "GAM",
+      "awayCode": "DEL",
+      "startsAt": "2030-06-02T19:00:00.000Z",
+      "venue": "Estádio Exemplo",
+      "city": "Cidade Exemplo"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import {
   onAuthStateChanged,
   signOut,
 } from '../lib/firebase-client.js';
+import { APP_NAME, COMPETITION_NAME } from '../lib/branding.js';
 
 async function api(path, token, options = {}) {
   const response = await fetch(`/api${path}`, {
@@ -26,21 +27,6 @@ async function api(path, token, options = {}) {
   if (!response.ok) throw new Error(body?.error?.message ?? 'Falha na requisição');
   return body;
 }
-
-const FLAG_BY_CODE = {
-  MEX: '🇲🇽', RSA: '🇿🇦', KOR: '🇰🇷', CZE: '🇨🇿',
-  CAN: '🇨🇦', BIH: '🇧🇦', QAT: '🇶🇦', SUI: '🇨🇭',
-  BRA: '🇧🇷', MAR: '🇲🇦', HAI: '🇭🇹', SCO: '🏴',
-  USA: '🇺🇸', PAR: '🇵🇾', AUS: '🇦🇺', TUR: '🇹🇷',
-  GER: '🇩🇪', CUW: '🇨🇼', CIV: '🇨🇮', ECU: '🇪🇨',
-  NED: '🇳🇱', JPN: '🇯🇵', TUN: '🇹🇳', SWE: '🇸🇪',
-  BEL: '🇧🇪', EGY: '🇪🇬', IRN: '🇮🇷', NZL: '🇳🇿',
-  ESP: '🇪🇸', CPV: '🇨🇻', KSA: '🇸🇦', URU: '🇺🇾',
-  FRA: '🇫🇷', SEN: '🇸🇳', NOR: '🇳🇴', IRQ: '🇮🇶',
-  ARG: '🇦🇷', ALG: '🇩🇿', AUT: '🇦🇹', JOR: '🇯🇴',
-  POR: '🇵🇹', UZB: '🇺🇿', COL: '🇨🇴', COD: '🇨🇩',
-  ENG: '🏴', CRO: '🇭🇷', GHA: '🇬🇭', PAN: '🇵🇦',
-};
 
 const PREDICTION_LOCK_LEAD_MS = 5 * 60_000;
 const AVATAR_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6'];
@@ -167,18 +153,6 @@ function RankPosition({ rank }) {
   return <span className="rankPos">{rank}</span>;
 }
 
-function isBotLeaderboardRow(row) {
-  const values = [row?.userId, row?.username, row?.name, row?.email]
-    .filter(Boolean)
-    .map((value) => String(value).trim().toLowerCase());
-  return values.some((value) => value === 'gpt'
-    || value === 'claude'
-    || value === 'mvp-player-gpt'
-    || value === 'mvp-player-claude'
-    || value === 'gpt@bolao26.local'
-    || value === 'claude@bolao26.local');
-}
-
 function ScoreOrVs({ match }) {
   const hasScore = match.homeGoals != null && match.awayGoals != null;
 
@@ -273,7 +247,7 @@ function MatchSpotlightCard({ match, teams, prediction, now, selectedPoolId, tok
 
       <div className="matchCardBody">
         <div className="teamBlock">
-          <div className="teamFlag">{FLAG_BY_CODE[home?.code] ?? '🏳'}</div>
+          <div className="teamFlag">{home?.flag ?? '🏳'}</div>
           <div className="teamCode">{home?.code ?? '???'}</div>
           <div className="teamFullName">{home?.name ?? '—'}</div>
         </div>
@@ -283,7 +257,7 @@ function MatchSpotlightCard({ match, teams, prediction, now, selectedPoolId, tok
         </div>
 
         <div className="teamBlock away">
-          <div className="teamFlag">{FLAG_BY_CODE[away?.code] ?? '🏳'}</div>
+          <div className="teamFlag">{away?.flag ?? '🏳'}</div>
           <div className="teamCode">{away?.code ?? '???'}</div>
           <div className="teamFullName">{away?.name ?? '—'}</div>
         </div>
@@ -317,7 +291,7 @@ function MatchSpotlightCard({ match, teams, prediction, now, selectedPoolId, tok
 }
 
 function RankingPanel({ leaderboard, profileId }) {
-  const visibleLeaderboard = leaderboard.filter((row) => !isBotLeaderboardRow(row));
+  const visibleLeaderboard = leaderboard;
 
   return (
     <section className="panel todayRankPanel">
@@ -513,8 +487,8 @@ export default function TodayPage() {
         <div className="topbarLogo">
           <div className="logo">B</div>
           <div>
-            <h1>Bolão STI 2026</h1>
-            <p>Copa do Mundo FIFA 2026</p>
+            <h1>{APP_NAME}</h1>
+            <p>{COMPETITION_NAME}</p>
           </div>
         </div>
         <div className="topbarActions">
@@ -541,7 +515,7 @@ export default function TodayPage() {
           <div className="authCard">
             <div className="authHeader">
               <div className="authLogo">B</div>
-              <h2>Bolão 2026</h2>
+              <h2>{APP_NAME}</h2>
               <p>Entre para ver jogos do dia e ranking.</p>
             </div>
             <div className="authBody">

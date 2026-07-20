@@ -1,6 +1,6 @@
 import { config } from '../../../src/config.js';
 import { createLiveScoreProvider } from '../../../src/live-score.js';
-import { buildCompactSyncResponse, getSyncStatus, orchestrate } from '../../../src/wc-sync.js';
+import { buildCompactSyncResponse, getSyncStatus, orchestrate } from '../../../src/competition-sync.js';
 
 export const dynamic = 'force-dynamic';
 

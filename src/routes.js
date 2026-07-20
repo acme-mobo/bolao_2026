@@ -1,4 +1,5 @@
 import { createToken, deleteFirebaseAuthUser, hashPassword, requireAdmin, requireFirebaseAuth, verifyPassword } from './auth.js';
+import { config } from './config.js';
 import { assert } from './errors.js';
 import { newId } from './id.js';
 import { notFound, parseUrl, readJson, sanitizeUser, send } from './http.js';
@@ -11,7 +12,7 @@ import {
 } from './match-reference.js';
 import { buildLeaderboard, scorePrediction } from './scoring.js';
 import { optionalDate, requireEmail, requireInteger, requireString } from './validation.js';
-import { buildCompactSyncResponse, orchestrate } from './wc-sync.js';
+import { buildCompactSyncResponse, orchestrate } from './competition-sync.js';
 
 const publicApiCacheControl = 'public, max-age=0, s-maxage=60, stale-while-revalidate=300';
 const liveApiCacheControl = 'public, max-age=0, s-maxage=10, stale-while-revalidate=15';
@@ -36,10 +37,10 @@ function ensureActivePool(db, user) {
 
   if (!pool) {
     pool = {
-      id: 'pool_copa_2026',
-      name: 'Bolao Copa 2026',
+      id: config.defaultPoolId,
+      name: config.defaultPoolName,
       ownerId: user.id,
-      inviteCode: 'COPA2026',
+      inviteCode: config.defaultPoolInviteCode,
       isActive: true,
       createdAt: now,
     };

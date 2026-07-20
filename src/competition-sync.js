@@ -1,10 +1,10 @@
 /**
- * wc-sync.js — Orquestrador de sincronização API-Football → Firestore
+ * competition-sync.js — Orquestrador de sincronização de placares → Firestore
  *
  * Responsabilidades:
  *  - Controle de uso diário (100 req/dia, 4 modos)
  *  - Lock distribuído para evitar concorrência
- *  - Escrita normalizada no Firestore (/worldcup/2026/...)
+ *  - Escrita normalizada no Firestore por competição
  *  - Bridge: atualiza também os matches do bolão para scoring de palpites
  *  - Decisão inteligente do que sincronizar a cada tick do cron
  */
@@ -15,7 +15,6 @@ import { config } from './config.js';
 import { getAdminFirestore } from './firebase-admin.js';
 import { applyLiveFixturesToDb, createLiveScoreProvider } from './live-score.js';
 import { store } from './store.js';
-import { worldCup2026GroupMatches, worldCup2026Teams } from './world-cup-2026-data.js';
 
 // ─── Constantes ───────────────────────────────────────
 const DAILY_LIMIT   = 100;
@@ -44,13 +43,11 @@ const LIVE_CONTEXT_INTERVALS = {
   postRecent: 10,
 };
 
-const FREE_PLAN_SUPPORTED_SEASONS = new Set([2022, 2023, 2024]);
-
 export function getApiFootballCapabilities(options = {}) {
   const plan = options.plan ?? config.apiFootballPlan;
   const season = options.season ?? config.apiFootballSeason;
   const isFreePlan = plan === 'free';
-  const seasonSupported = !isFreePlan || FREE_PLAN_SUPPORTED_SEASONS.has(season);
+  const seasonSupported = !isFreePlan;
   return {
     plan,
     canSyncSeasonFixtures: seasonSupported,
@@ -58,14 +55,14 @@ export function getApiFootballCapabilities(options = {}) {
     canSyncDailyFixtures: true,
     canSyncLive: true,
     seasonUnsupportedReason: isFreePlan
-      ? 'API-Football Free não libera endpoints por season=2026; use /api/sync/seed para o calendário completo/local ou API_FOOTBALL_PLAN=paid.'
+      ? `API-Football Free não libera endpoints por season=${season}; use /api/sync/seed para o calendário local ou API_FOOTBALL_PLAN=paid.`
       : null,
   };
 }
 
 // ─── Firestore refs ───────────────────────────────────
 const fs         = () => getAdminFirestore();
-const wcRoot     = () => fs().collection('worldcup').doc('2026');
+const competitionRoot = () => fs().collection('competitions').doc(config.competitionId);
 const systemCol  = () => fs().collection('system');
 
 // ─── Controle de uso diário ───────────────────────────
@@ -135,11 +132,7 @@ export function hasApiFootballBudget(used, estimatedCalls = 1, options = {}) {
   return used + estimatedCalls <= getApiFootballDailyBudget(options);
 }
 
-function normalizeLocalFixture([fixtureId, group, homeCode, awayCode, date, venue, city]) {
-  return { fixtureId, group, homeCode, awayCode, date, venue, city };
-}
-
-export function getLocalFixturesForDate(date, fixtures = worldCup2026GroupMatches.map(normalizeLocalFixture)) {
+export function getLocalFixturesForDate(date, fixtures = []) {
   return fixtures.filter((fixture) => fixture.date?.slice(0, 10) === date);
 }
 
@@ -157,7 +150,7 @@ export function isInsideLiveWindow(fixtures = [], now = new Date()) {
 }
 
 async function readKnownFixturesForDate(date) {
-  const dailySnap = await wcRoot().collection('daily').doc(date).get();
+  const dailySnap = await competitionRoot().collection('daily').doc(date).get();
   const dailyFixtures = dailySnap.exists ? dailySnap.data()?.fixtures ?? [] : [];
   const localFixtures = getLocalFixturesForDate(date);
   if (!dailyFixtures.length) return localFixtures;
@@ -178,7 +171,7 @@ async function readKnownFixturesForDate(date) {
 // ─── Escritas no Firestore ────────────────────────────
 async function writeFixturesBatch(fixtures) {
   if (!fixtures.length) return;
-  const root = wcRoot();
+  const root = competitionRoot();
   // Firestore batch suporta até 500 ops; para 48 fixtures é suficiente
   const batch = fs().batch();
   for (const f of fixtures) {
@@ -188,35 +181,35 @@ async function writeFixturesBatch(fixtures) {
 }
 
 async function writeDailyDoc(date, fixtures) {
-  await wcRoot().collection('daily').doc(date).set(
+  await competitionRoot().collection('daily').doc(date).set(
     { date, fixtures, updatedAt: new Date().toISOString() },
     { merge: true },
   );
 }
 
 async function writeLiveDoc(fixtures) {
-  await wcRoot().collection('live').doc('current').set({
+  await competitionRoot().collection('live').doc('current').set({
     fixtures,
     updatedAt: new Date().toISOString(),
   });
 }
 
 async function writeStandingsDoc(standings) {
-  await wcRoot().collection('standings').doc('current').set({
+  await competitionRoot().collection('standings').doc('current').set({
     standings,
     updatedAt: new Date().toISOString(),
   });
 }
 
 async function writeSyncStatus(patch) {
-  await wcRoot().collection('meta').doc('syncStatus').set(
+  await competitionRoot().collection('meta').doc('syncStatus').set(
     { ...patch, updatedAt: new Date().toISOString() },
     { merge: true },
   );
 }
 
 async function writeSyncLog(entry) {
-  await wcRoot().collection('syncLogs').add(entry);
+  await competitionRoot().collection('syncLogs').add(entry);
 }
 
 function summarizeSyncOp(op) {
@@ -670,11 +663,11 @@ export async function orchestrate(options = {}) {
   }
 
   // Lê status atual de sincronização
-  const statusSnap = await wcRoot().collection('meta').doc('syncStatus').get();
+  const statusSnap = await competitionRoot().collection('meta').doc('syncStatus').get();
   const status     = statusSnap.exists ? statusSnap.data() : {};
 
   // Verifica se há jogos ativos ou em janela próxima (para decidir sobre live)
-  const liveSnap  = await wcRoot().collection('live').doc('current').get();
+  const liveSnap  = await competitionRoot().collection('live').doc('current').get();
   const liveData  = liveSnap.exists ? liveSnap.data() : { fixtures: [] };
   const hasLiveNow = (liveData.fixtures ?? []).some((f) => f.status === 'live');
   const knownTodayFixtures = await readKnownFixturesForDate(todayUtc);
@@ -865,32 +858,37 @@ export async function orchestrate(options = {}) {
   }
 }
 
-// ─── Seed local (dados de world-cup-2026-data.js) ────
+// ─── Seed local a partir do store normalizado ────────
 export async function seedLocalFixtures() {
-  const teamNames = Object.fromEntries(worldCup2026Teams.map(([name, code]) => [code, name]));
+  await store.loadCollections(['teams', 'matches']);
+  const teamsById = new Map(store.db.teams.map((team) => [team.id, team]));
   const now = new Date().toISOString();
 
-  const fixtures = worldCup2026GroupMatches.map(([num, group, homeCode, awayCode, date, venue, city]) => ({
-    fixtureId:     num,
-    date,
-    statusShort:   'NS',
-    statusElapsed: null,
-    status:        'scheduled',
-    round:         'Group Stage',
-    group,
-    venue,
-    city,
-    homeCode,
-    awayCode,
-    homeName:      teamNames[homeCode] ?? homeCode,
-    awayName:      teamNames[awayCode] ?? awayCode,
-    homeLogo:      null,
-    awayLogo:      null,
-    homeGoals:     null,
-    awayGoals:     null,
-    updatedAt:     now,
-    source:        'local',
-  }));
+  const fixtures = store.db.matches.map((match) => {
+    const home = teamsById.get(match.homeTeamId);
+    const away = teamsById.get(match.awayTeamId);
+    return {
+      fixtureId: match.externalMatchId ?? match.id,
+      date: match.startsAt,
+      statusShort: match.status === 'scheduled' ? 'NS' : null,
+      statusElapsed: null,
+      status: match.status,
+      round: match.stage,
+      group: match.group,
+      venue: match.venue,
+      city: match.city,
+      homeCode: home?.code ?? null,
+      awayCode: away?.code ?? null,
+      homeName: home?.name ?? match.homeSlot ?? '',
+      awayName: away?.name ?? match.awaySlot ?? '',
+      homeLogo: null,
+      awayLogo: null,
+      homeGoals: match.homeGoals,
+      awayGoals: match.awayGoals,
+      updatedAt: now,
+      source: 'local',
+    };
+  }).filter((fixture) => fixture.date);
 
   // Agrupa por data UTC para popular os docs de daily
   const byDate = {};
@@ -903,7 +901,7 @@ export async function seedLocalFixtures() {
   await writeFixturesBatch(fixtures);
 
   // Escreve um doc por data
-  const root = wcRoot();
+  const root = competitionRoot();
   const fsBatch = fs().batch();
   for (const [date, dayFixtures] of Object.entries(byDate)) {
     fsBatch.set(
@@ -928,7 +926,7 @@ export async function seedLocalFixtures() {
 export async function getSyncStatus() {
   const todayUtc = new Date().toISOString().slice(0, 10);
   const [statusSnap, usage] = await Promise.all([
-    wcRoot().collection('meta').doc('syncStatus').get(),
+    competitionRoot().collection('meta').doc('syncStatus').get(),
     getUsage(todayUtc),
   ]);
 

@@ -1,6 +1,5 @@
 import { config } from './config.js';
 import { HttpError } from './errors.js';
-import { worldCup2026Teams } from './world-cup-2026-data.js';
 
 const NEXT_DATA_RE = /<script[^>]+id=["']__NEXT_DATA__["'][^>]*>(.*?)<\/script>/s;
 const BUILD_ID_RE = /"buildId"\s*:\s*"([^"]+)"/;
@@ -13,56 +12,12 @@ const DATE_API_LIVE_STATUSES = new Set([2, 3, 4, 5]);
 const DATE_API_FINISHED_STATUSES = new Set([6, 7, 8, 9]);
 
 const livescoreCodeOverrides = new Map([
-  ['CZECHIA', 'CZE'],
-  ['SOUTH AFRICA', 'RSA'],
-  ['SOUTH KOREA', 'KOR'],
-  ['BOSNIA AND HERZEGOVINA', 'BIH'],
-  ['BRAZIL', 'BRA'],
-  ['MOROCCO', 'MAR'],
-  ['SCOTLAND', 'SCO'],
-  ['USA', 'USA'],
-  ['UNITED STATES', 'USA'],
-  ['TURKIYE', 'TUR'],
-  ['TURKEY', 'TUR'],
-  ['GERMANY', 'GER'],
-  ['CURACAO', 'CUW'],
-  ['IVORY COAST', 'CIV'],
-  ['NETHERLANDS', 'NED'],
-  ['JAPAN', 'JPN'],
-  ['BELGIUM', 'BEL'],
-  ['EGYPT', 'EGY'],
-  ['IRAN', 'IRN'],
-  ['NEW ZEALAND', 'NZL'],
-  ['CAPE VERDE', 'CPV'],
-  ['SAUDI ARABIA', 'KSA'],
-  ['FRANCE', 'FRA'],
-  ['IRAQ', 'IRQ'],
-  ['ALGERIA', 'ALG'],
-  ['JORDAN', 'JOR'],
-  ['DR CONGO', 'COD'],
-  ['DEMOCRATIC REPUBLIC OF THE CONGO', 'COD'],
-  ['ENGLAND', 'ENG'],
-  ['PARAGUAY', 'PAR'],
   ['PRY', 'PAR'],
-  ['SWITZERLAND', 'SUI'],
   ['SWI', 'SUI'],
   ['CHE', 'SUI'],
-  ['QATAR', 'QAT'],
-  ['ECUADOR', 'ECU'],
-  ['SWEDEN', 'SWE'],
-  ['UZBEKISTAN', 'UZB'],
-  ['CROATIA', 'CRO'],
   ['HRV', 'CRO'],
-  ['GHANA', 'GHA'],
-  ['NORWAY', 'NOR'],
-  ['SPAIN', 'ESP'],
-  ['URUGUAY', 'URU'],
   ['URY', 'URU'],
 ]);
-
-const localCodeByName = new Map(
-  worldCup2026Teams.map(([name, code]) => [normalizeNameKey(name), code]),
-);
 
 function resolveAbr(abr) {
   if (!abr) return null;
@@ -73,24 +28,6 @@ function parseScore(value) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) ? parsed : null;
-}
-
-function normalizeNameKey(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, ' ')
-    .trim();
-}
-
-function codeForTeam(team) {
-  const candidates = [team.NmEn, team.Tnm].map(normalizeNameKey).filter(Boolean);
-  for (const candidate of candidates) {
-    if (livescoreCodeOverrides.has(candidate)) return livescoreCodeOverrides.get(candidate);
-    if (localCodeByName.has(candidate)) return localCodeByName.get(candidate);
-  }
-  return null;
 }
 
 function parseNumber(value) {
@@ -189,8 +126,8 @@ export function normalizeLiveScoreDateEvent(event, stage = {}) {
     group: extractGroup(stage.Snm ?? stage.Sdn),
     venue: null,
     city: null,
-    homeCode: resolveAbr(homeTeam.Abr) ?? codeForTeam(homeTeam) ?? null,
-    awayCode: resolveAbr(awayTeam.Abr) ?? codeForTeam(awayTeam) ?? null,
+    homeCode: resolveAbr(homeTeam.Abr),
+    awayCode: resolveAbr(awayTeam.Abr),
     homeName: homeTeam.NmEn ?? homeTeam.Nm ?? homeTeam.Tnm ?? '',
     awayName: awayTeam.NmEn ?? awayTeam.Nm ?? awayTeam.Tnm ?? '',
     homeLogo: homeTeam.Img ?? null,
@@ -275,7 +212,7 @@ export function normalizeLiveScoreStandings(payload) {
       group,
       rank: parseNumber(team.rnk),
       teamId: team.Tid ?? null,
-      teamCode: codeForTeam(team),
+      teamCode: resolveAbr(team.Abr),
       teamName: team.Tnm ?? team.NmEn ?? '',
       teamNameEn: team.NmEn ?? null,
       teamLogo: team.Img ?? null,

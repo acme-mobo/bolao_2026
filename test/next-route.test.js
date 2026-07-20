@@ -4,8 +4,8 @@ import { POST } from '../app/api/[...path]/route.js';
 
 test('Next API route serializa erros do router como JSON', async () => {
   const response = await POST(
-    new Request('http://localhost/api/pools/pool_copa_2026/predictions', { method: 'POST' }),
-    { params: Promise.resolve({ path: ['pools', 'pool_copa_2026', 'predictions'] }) },
+    new Request('http://localhost/api/pools/pool_main/predictions', { method: 'POST' }),
+    { params: Promise.resolve({ path: ['pools', 'pool_main', 'predictions'] }) },
   );
 
   assert.equal(response.status, 401);

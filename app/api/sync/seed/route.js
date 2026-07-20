@@ -1,5 +1,5 @@
 import { config } from '../../../../src/config.js';
-import { seedLocalFixtures } from '../../../../src/wc-sync.js';
+import { seedLocalFixtures } from '../../../../src/competition-sync.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +15,7 @@ function seedJson(payload, init = {}) {
   return Response.json(payload, { ...init, headers });
 }
 
-// POST /api/sync/seed — popula Firestore com os 72 jogos da fase de grupos
+// POST /api/sync/seed — popula o cache de sincronização com os jogos do store
 export async function POST(request) {
   if (!authorized(request)) {
     return seedJson({ error: 'Não autorizado' }, { status: 401 });

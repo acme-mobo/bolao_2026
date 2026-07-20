@@ -15,6 +15,7 @@ import {
   signOut,
   updateProfile,
 } from './lib/firebase-client.js';
+import { APP_NAME, COMPETITION_NAME } from './lib/branding.js';
 
 // ─── API helper ──────────────────────────────────────
 async function api(path, token, options = {}) {
@@ -33,7 +34,7 @@ async function api(path, token, options = {}) {
   return body;
 }
 
-const SESSION_CACHE_KEY = 'bolao26.sessionSnapshot';
+const SESSION_CACHE_KEY = 'bolao.sessionSnapshot';
 
 function readSessionSnapshot() {
   if (typeof window === 'undefined') return null;
@@ -66,22 +67,6 @@ function sameJson(left, right) {
 function replaceIfChanged(setter, nextValue) {
   setter((currentValue) => (sameJson(currentValue, nextValue) ? currentValue : nextValue));
 }
-
-// ─── Flag emoji by FIFA code ─────────────────────────
-const FLAG_BY_CODE = {
-  MEX: '🇲🇽', RSA: '🇿🇦', KOR: '🇰🇷', CZE: '🇨🇿',
-  CAN: '🇨🇦', BIH: '🇧🇦', QAT: '🇶🇦', SUI: '🇨🇭',
-  BRA: '🇧🇷', MAR: '🇲🇦', HAI: '🇭🇹', SCO: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-  USA: '🇺🇸', PAR: '🇵🇾', AUS: '🇦🇺', TUR: '🇹🇷',
-  GER: '🇩🇪', CUW: '🇨🇼', CIV: '🇨🇮', ECU: '🇪🇨',
-  NED: '🇳🇱', JPN: '🇯🇵', TUN: '🇹🇳', SWE: '🇸🇪',
-  BEL: '🇧🇪', EGY: '🇪🇬', IRN: '🇮🇷', NZL: '🇳🇿',
-  ESP: '🇪🇸', CPV: '🇨🇻', KSA: '🇸🇦', URU: '🇺🇾',
-  FRA: '🇫🇷', SEN: '🇸🇳', NOR: '🇳🇴', IRQ: '🇮🇶',
-  ARG: '🇦🇷', ALG: '🇩🇿', AUT: '🇦🇹', JOR: '🇯🇴',
-  POR: '🇵🇹', UZB: '🇺🇿', COL: '🇨🇴', COD: '🇨🇩',
-  ENG: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', CRO: '🇭🇷', GHA: '🇬🇭', PAN: '🇵🇦',
-};
 
 const PREDICTION_LOCK_LEAD_MS = 5 * 60_000;
 
@@ -211,13 +196,6 @@ function knockoutStageKey(match) {
   if (['third-place', 'third-place-play-off', '3rd-place', 'terceiro-lugar', 'disputa-de-3-lugar'].includes(normalized)) return 'third-place';
   if (normalized === 'final') return 'final';
 
-  const n = Number(match?.matchNumber);
-  if (n >= 73 && n <= 88) return 'round-of-32';
-  if (n >= 89 && n <= 96) return 'round-of-16';
-  if (n >= 97 && n <= 100) return 'quarter-final';
-  if (n >= 101 && n <= 102) return 'semi-final';
-  if (n === 103) return 'third-place';
-  if (n === 104) return 'final';
   return null;
 }
 
@@ -477,18 +455,6 @@ function RankPosition({ rank }) {
   return <span className="rankPos">{rank}</span>;
 }
 
-function isBotLeaderboardRow(row) {
-  const values = [row?.userId, row?.username, row?.name, row?.email]
-    .filter(Boolean)
-    .map((value) => String(value).trim().toLowerCase());
-  return values.some((value) => value === 'gpt'
-    || value === 'claude'
-    || value === 'mvp-player-gpt'
-    || value === 'mvp-player-claude'
-    || value === 'gpt@bolao26.local'
-    || value === 'claude@bolao26.local');
-}
-
 function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
   selectedPoolId, token, myUserId, showGroup, urgency, now, variant = 'default',
   onUpdateDraft, onSave, onDeletePrediction }) {
@@ -555,7 +521,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
 
       <div className="matchCardBody">
         <div className="teamBlock">
-          <div className={`teamFlag${home ? '' : ' pendingFlag'}`}>{home ? FLAG_BY_CODE[home.code] ?? '🏳' : 'TBD'}</div>
+          <div className={`teamFlag${home ? '' : ' pendingFlag'}`}>{home ? home.flag ?? '🏳' : 'TBD'}</div>
           <div className="teamCode">{homeCode}</div>
           <div className="teamFullName">{homeName}</div>
         </div>
@@ -602,7 +568,7 @@ function MatchCard({ match, teams, predictions, predictionDrafts, savedMatches,
         </div>
 
         <div className="teamBlock away">
-          <div className={`teamFlag${away ? '' : ' pendingFlag'}`}>{away ? FLAG_BY_CODE[away.code] ?? '🏳' : 'TBD'}</div>
+          <div className={`teamFlag${away ? '' : ' pendingFlag'}`}>{away ? away.flag ?? '🏳' : 'TBD'}</div>
           <div className="teamCode">{awayCode}</div>
           <div className="teamFullName">{awayName}</div>
         </div>
@@ -673,7 +639,7 @@ function bracketTeamInfo(match, teams, side) {
   return {
     code: team?.code ?? 'TBD',
     name: team?.name ?? slot ?? 'A definir',
-    flag: team ? FLAG_BY_CODE[team.code] ?? '🏳' : null,
+    flag: team ? team.flag ?? '🏳' : null,
   };
 }
 
@@ -1213,10 +1179,7 @@ export default function HomePage() {
   }
 
   // ─── Derived data ────────────────────────────────────
-  const visibleLeaderboard = useMemo(
-    () => leaderboard.filter((row) => !isBotLeaderboardRow(row)),
-    [leaderboard],
-  );
+  const visibleLeaderboard = leaderboard;
   const myLeaderboardIndex = leaderboard.findIndex((r) => r.userId === profile?.id);
   const myLeaderboardRow = myLeaderboardIndex >= 0 ? leaderboard[myLeaderboardIndex] : null;
   const myPoints = myLeaderboardRow?.points ?? 0;
@@ -1397,7 +1360,7 @@ export default function HomePage() {
           <div className="authCard">
             <div className="authHeader">
               <div className="authLogo">B</div>
-              <h2>Bolão 2026</h2>
+              <h2>{APP_NAME}</h2>
               <p>Restaurando sessão…</p>
             </div>
             <div className="predsLoading">Carregando dados do usuário…</div>
@@ -1421,8 +1384,8 @@ export default function HomePage() {
         <div className="topbarLogo">
           <div className="logo">B</div>
           <div>
-            <h1>Bolão STI 2026</h1>
-            <p>Copa do Mundo FIFA 2026</p>
+            <h1>{APP_NAME}</h1>
+            <p>{COMPETITION_NAME}</p>
           </div>
         </div>
         <div className="topbarActions">
@@ -1466,8 +1429,8 @@ export default function HomePage() {
           <div className="authCard">
             <div className="authHeader">
               <div className="authLogo">B</div>
-              <h2>Bolão 2026</h2>
-              <p>Copa do Mundo FIFA 2026</p>
+              <h2>{APP_NAME}</h2>
+              <p>{COMPETITION_NAME}</p>
             </div>
             <div className="authBody">
               <div className="segmented">
@@ -1519,7 +1482,7 @@ export default function HomePage() {
                 )}
               </div>
               <h2>{activePool?.name ?? 'Carregando…'}</h2>
-              <p className="heroSub">Copa do Mundo FIFA 2026 · grupos e mata-mata</p>
+              <p className="heroSub">{COMPETITION_NAME}</p>
             </div>
             <img src="/hero-banner.png" className="heroBanner" alt="" aria-hidden="true" />
             <div className="heroActions">

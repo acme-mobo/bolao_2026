@@ -10,6 +10,7 @@ import {
   onAuthStateChanged,
   signOut,
 } from '../../lib/firebase-client.js';
+import { APP_NAME } from '../../lib/branding.js';
 
 async function api(path, token, options = {}) {
   const response = await fetch(`/api${path}`, {
@@ -26,21 +27,6 @@ async function api(path, token, options = {}) {
   if (!response.ok) throw new Error(body?.error?.message ?? 'Falha na requisição');
   return body;
 }
-
-const FLAG_BY_CODE = {
-  MEX: '🇲🇽', RSA: '🇿🇦', KOR: '🇰🇷', CZE: '🇨🇿',
-  CAN: '🇨🇦', BIH: '🇧🇦', QAT: '🇶🇦', SUI: '🇨🇭',
-  BRA: '🇧🇷', MAR: '🇲🇦', HAI: '🇭🇹', SCO: '🏴',
-  USA: '🇺🇸', PAR: '🇵🇾', AUS: '🇦🇺', TUR: '🇹🇷',
-  GER: '🇩🇪', CUW: '🇨🇼', CIV: '🇨🇮', ECU: '🇪🇨',
-  NED: '🇳🇱', JPN: '🇯🇵', TUN: '🇹🇳', SWE: '🇸🇪',
-  BEL: '🇧🇪', EGY: '🇪🇬', IRN: '🇮🇷', NZL: '🇳🇿',
-  ESP: '🇪🇸', CPV: '🇨🇻', KSA: '🇸🇦', URU: '🇺🇾',
-  FRA: '🇫🇷', SEN: '🇸🇳', NOR: '🇳🇴', IRQ: '🇮🇶',
-  ARG: '🇦🇷', ALG: '🇩🇿', AUT: '🇦🇹', JOR: '🇯🇴',
-  POR: '🇵🇹', UZB: '🇺🇿', COL: '🇨🇴', COD: '🇨🇩',
-  ENG: '🏴', CRO: '🇭🇷', GHA: '🇬🇭', PAN: '🇵🇦',
-};
 
 const STATUS_OPTIONS = [
   ['scheduled', 'Agendado'],
@@ -130,12 +116,12 @@ function MatchEditor({ match, teams, draft, saving, saved, onDraft, onSave }) {
         </div>
         <div className="adminTeams">
           <span>
-            <span className="teamFlag compact">{FLAG_BY_CODE[home?.code] ?? '🏳'}</span>
+            <span className="teamFlag compact">{home?.flag ?? '🏳'}</span>
             <strong>{home?.code ?? '???'}</strong>
             <small>{home?.name ?? '-'}</small>
           </span>
           <span>
-            <span className="teamFlag compact">{FLAG_BY_CODE[away?.code] ?? '🏳'}</span>
+            <span className="teamFlag compact">{away?.flag ?? '🏳'}</span>
             <strong>{away?.code ?? '???'}</strong>
             <small>{away?.name ?? '-'}</small>
           </span>
@@ -393,7 +379,7 @@ export default function AdminScoresPage() {
         <div className="topbarLogo">
           <div className="logo">B</div>
           <div>
-            <h1>Bolão STI 2026</h1>
+            <h1>{APP_NAME}</h1>
             <p>Administração de placares</p>
           </div>
         </div>
@@ -420,7 +406,7 @@ export default function AdminScoresPage() {
           <div className="authCard">
             <div className="authHeader">
               <div className="authLogo">B</div>
-              <h2>Bolão 2026</h2>
+              <h2>{APP_NAME}</h2>
               <p>Entre com uma conta admin para alterar placares.</p>
             </div>
             <div className="authBody">

@@ -2,14 +2,17 @@ import fs from 'node:fs';
 import { newId } from './id.js';
 import { store } from './store.js';
 
-const POOL_ID = 'pool_copa_2026';
-
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
-const inputPath = args.find((arg) => !arg.startsWith('--'));
+const poolArgIndex = args.indexOf('--pool');
+const poolId = poolArgIndex >= 0 ? args[poolArgIndex + 1] : null;
+const positionalArgs = args.filter((arg, index) => (
+  !arg.startsWith('--') && index !== poolArgIndex + 1
+));
+const inputPath = positionalArgs[0];
 
 if (!inputPath) {
-  throw new Error('Uso: node src/import-pasted-predictions.js <arquivo.md> [--dry-run]');
+  throw new Error('Uso: node src/import-pasted-predictions.js <arquivo.md> [--pool <id>] [--dry-run]');
 }
 
 function normalize(value) {
@@ -23,60 +26,6 @@ function normalize(value) {
     .trim()
     .toLowerCase();
 }
-
-const TEAM_ALIASES = {
-  mexico: 'MEX',
-  'africa do sul': 'RSA',
-  'coreia do sul': 'KOR',
-  tchequia: 'CZE',
-  canada: 'CAN',
-  bosnia: 'BIH',
-  'bosnia e herzegovina': 'BIH',
-  catar: 'QAT',
-  suica: 'SUI',
-  brasil: 'BRA',
-  marrocos: 'MAR',
-  haiti: 'HAI',
-  escocia: 'SCO',
-  'estados unidos': 'USA',
-  paraguai: 'PAR',
-  australia: 'AUS',
-  turquia: 'TUR',
-  alemanha: 'GER',
-  curacao: 'CUW',
-  curacau: 'CUW',
-  'costa do marfim': 'CIV',
-  equador: 'ECU',
-  'paises baixos': 'NED',
-  japao: 'JPN',
-  tunisia: 'TUN',
-  suecia: 'SWE',
-  belgica: 'BEL',
-  egito: 'EGY',
-  ira: 'IRN',
-  'nova zelandia': 'NZL',
-  espanha: 'ESP',
-  'cabo verde': 'CPV',
-  'arabia saudita': 'KSA',
-  uruguai: 'URU',
-  franca: 'FRA',
-  senegal: 'SEN',
-  noruega: 'NOR',
-  iraque: 'IRQ',
-  argentina: 'ARG',
-  argelia: 'ALG',
-  austria: 'AUT',
-  jordania: 'JOR',
-  portugal: 'POR',
-  uzbequistao: 'UZB',
-  colombia: 'COL',
-  congo: 'COD',
-  'rd congo': 'COD',
-  inglaterra: 'ENG',
-  croacia: 'CRO',
-  gana: 'GHA',
-  panama: 'PAN',
-};
 
 function parseTable(raw) {
   const rows = [];
@@ -109,17 +58,11 @@ function parseTable(raw) {
 }
 
 function buildTeamResolver(teams) {
-  const byCode = new Map(teams.map((team) => [team.code, team]));
   const byName = new Map();
 
   for (const team of teams) {
     byName.set(normalize(team.name), team);
     byName.set(normalize(team.code), team);
-  }
-
-  for (const [alias, code] of Object.entries(TEAM_ALIASES)) {
-    const team = byCode.get(code);
-    if (team) byName.set(normalize(alias), team);
   }
 
   return (name) => byName.get(normalize(name));
@@ -136,8 +79,10 @@ const rows = parseTable(raw);
 
 const summary = await store.transaction((db) => {
   const now = new Date().toISOString();
-  const pool = db.pools.find((candidate) => candidate.id === POOL_ID || candidate.isActive);
-  if (!pool) throw new Error(`Bolao ${POOL_ID} nao encontrado`);
+  const pool = poolId
+    ? db.pools.find((candidate) => candidate.id === poolId)
+    : db.pools.find((candidate) => candidate.isActive) ?? db.pools[0];
+  if (!pool) throw new Error(poolId ? `Bolao ${poolId} nao encontrado` : 'Nenhum bolao encontrado');
 
   const resolveTeam = buildTeamResolver(db.teams);
   const usersByUsername = new Map(

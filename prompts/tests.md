@@ -10,6 +10,12 @@ Comportamento:
 - Casos principais:
 - Casos de erro ou borda:
 
+Fora de escopo:
+-
+
+Criterios de aceite:
+-
+
 Regras:
 - Use `node:test` e `node:assert/strict`.
 - Siga os padroes dos arquivos em `test/`.
@@ -17,5 +23,6 @@ Regras:
 - Para API, teste via `createRouter`.
 - Para store, use arquivo temporario ou fake.
 - Nao altere comportamento de producao a menos que seja indispensavel para tornar o teste possivel.
-- Rode `npm test` ao final e reporte o resultado.
+- Evite snapshots grandes e assercoes sobre detalhes internos sem valor de contrato.
+- Rode primeiro o arquivo de teste afetado, depois `npm test`, e reporte os resultados.
 ```

@@ -1,7 +1,7 @@
 {
-  "name": "bolao26",
+  "name": "bolao",
   "version": "1.0.0",
-  "description": "Monolito web para bolao da Copa do Mundo de 2026.",
+  "description": "Monolito web reutilizavel para boloes de futebol.",
   "type": "module",
   "dependencies": {
     "firebase": "^10.14.1",
@@ -18,9 +18,10 @@
     "api:dev": "NODE_ENV=development node src/server.js",
     "build": "next build",
     "seed": "node src/seed.js",
-    "seed:knockout": "node src/seed-knockout-matches.js",
     "purge": "node src/purge-users.js",
     "test": "NODE_ENV=test node --test",
+    "test:watch": "NODE_ENV=test node --test --watch",
+    "validate:quick": "./scripts/validate.sh quick",
     "validate": "./scripts/validate.sh"
   },
   "engines": {
@@ -28,7 +29,7 @@
   },
   "keywords": [
     "bolao",
-    "world-cup",
+    "football",
     "api"
   ],
   "license": "MIT"
